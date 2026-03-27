@@ -57,6 +57,10 @@ bool RpnCalculator::apply(CalculatorAction action) {
     case CalculatorAction::Multiply:
     case CalculatorAction::Divide:
       return performBinaryOperation(action);
+    case CalculatorAction::SwapXY:
+      return swapXY();
+    case CalculatorAction::Drop:
+      return drop();
     case CalculatorAction::ClearX:
       return clearX();
     case CalculatorAction::ClearAll:
@@ -145,6 +149,30 @@ bool RpnCalculator::toggleSign() {
   }
 
   stack_[0] = -stack_[0];
+  return true;
+}
+
+bool RpnCalculator::swapXY() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+
+  const double x = stack_[0];
+  stack_[0] = stack_[1];
+  stack_[1] = x;
+  return true;
+}
+
+bool RpnCalculator::drop() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  stack_[0] = stack_[1];
+  dropStack();
   return true;
 }
 

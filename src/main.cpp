@@ -89,6 +89,7 @@
 
 #include <SparkFun_External_EEPROM.h>  // http://librarymanager/All#SparkFun_External_EEPROM
 
+#include "CalculatorKeymap.h"
 #include "Keypad.h"
 #include "RpnCalculator.h"
 
@@ -171,63 +172,6 @@ void increaseBrightness() {
 void decreaseBrightness() {
   brightness /= 2;
   applyBrightness();
-}
-
-CalculatorAction digitToAction(char keyPressed) {
-  switch (keyPressed) {
-    case '0':
-      return CalculatorAction::Digit0;
-    case '1':
-      return CalculatorAction::Digit1;
-    case '2':
-      return CalculatorAction::Digit2;
-    case '3':
-      return CalculatorAction::Digit3;
-    case '4':
-      return CalculatorAction::Digit4;
-    case '5':
-      return CalculatorAction::Digit5;
-    case '6':
-      return CalculatorAction::Digit6;
-    case '7':
-      return CalculatorAction::Digit7;
-    case '8':
-      return CalculatorAction::Digit8;
-    case '9':
-      return CalculatorAction::Digit9;
-    default:
-      return CalculatorAction::None;
-  }
-}
-
-CalculatorAction translateKeyToCalculatorAction(char keyPressed) {
-  const CalculatorAction digitAction = digitToAction(keyPressed);
-  if (digitAction != CalculatorAction::None) {
-    return digitAction;
-  }
-
-  switch (keyPressed) {
-    case '.':
-      return CalculatorAction::DecimalPoint;
-    case '+':
-      return CalculatorAction::Add;
-    case '-':
-      return CalculatorAction::Subtract;
-    case '*':
-      return CalculatorAction::Multiply;
-    case '/':
-      return CalculatorAction::Divide;
-    case 'e':
-      return CalculatorAction::Enter;
-    case 's':
-      return CalculatorAction::ChangeSign;
-    case 'x':
-      return CalculatorAction::ClearX;
-    case 'c':
-      return CalculatorAction::ClearAll;
-    default:
-      return CalculatorAction::None;
-  }
 }
 
 void handlePressedKey(char keyPressed) {
@@ -332,7 +276,7 @@ void setupEeprom() {
 }
 
 void drawCalculatorScreen() {
-  char eventBuffer[22];
+  char statusBuffer[22];
   const CalculatorStack stack = calculator.stack();
   const char keyLabel = keypadDiagnostics.hasEvent ? keypadDiagnostics.lastKey : '-';
   const char *xLabel = calculator.isEntering() ? "X>" : "X:";
@@ -344,18 +288,18 @@ void drawCalculatorScreen() {
   drawStackLine(30, xLabel, stack.x);
 
   if (calculator.hasError()) {
-    snprintf(eventBuffer, sizeof(eventBuffer), "err:%s", calculator.errorMessage());
+    snprintf(statusBuffer, sizeof(statusBuffer), "err:%s", calculator.errorMessage());
   } else {
-    snprintf(eventBuffer,
-             sizeof(eventBuffer),
+    snprintf(statusBuffer,
+             sizeof(statusBuffer),
              "evt:%c %s act:%u",
              keyLabel,
              keypadDiagnostics.hasEvent ? keyStateName(keypadDiagnostics.lastState) : "-",
              keypadDiagnostics.activeKeys);
   }
 
-  display.drawStr(0, 42, eventBuffer);
-  display.drawStr(0, 54, "E=e C=c X=x S=s a+/b-");
+  display.drawStr(0, 42, statusBuffer);
+  display.drawStr(0, 54, calculatorPrimaryLegend());
 }
 
 }  // namespace

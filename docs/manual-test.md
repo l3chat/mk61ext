@@ -59,6 +59,8 @@ The current provisional calculator key mapping is:
 - decimal point: `.`
 - operations: `+`, `-`, `*`, `/`
 - `e`: `ENTER`
+- `u`: swap `X` and `Y`
+- `v`: drop the stack one level
 - `c`: clear all
 - `x`: clear X
 - `s`: change sign
@@ -73,6 +75,10 @@ The current provisional calculator key mapping is:
 8. Confirm `X` resets to `0`.
 9. Press `c`.
 10. Confirm `X`, `Y`, `Z`, and `T` all reset to `0`.
+11. Press `8`, then `e`, then `2`, then `u`.
+12. Confirm `X` and `Y` swap values.
+13. Press `v`.
+14. Confirm the stack drops one level.
 
 ## Multi-Key Hold Regression Check
 
@@ -95,3 +101,4 @@ This verifies the recent keypad timing fix.
   - row 6: `1 2 3 u v`
   - row 7: `0 . x y z`
 - The calculator screen and key mapping are still provisional and may change once the final MK-61 key layout is decided.
+- The bottom legend line on-screen currently shows only the most-used temporary bindings. The full provisional mapping is listed above.

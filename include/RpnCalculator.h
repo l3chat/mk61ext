@@ -23,6 +23,8 @@ enum class CalculatorAction : uint8_t {
   Subtract,
   Multiply,
   Divide,
+  SwapXY,
+  Drop,
   ClearX,
   ClearAll,
 };
@@ -57,6 +59,8 @@ private:
   bool enterDecimalPoint();
   bool pressEnter();
   bool toggleSign();
+  bool swapXY();
+  bool drop();
   bool clearX();
   bool clearAll();
   bool performBinaryOperation(CalculatorAction action);
