@@ -199,6 +199,11 @@ const char *keyStateName(KeyState state) {
   return "?";
 }
 
+const char *activeLegend() {
+  const uint8_t page = (millis() / 2000U) % calculatorLegendPageCount();
+  return calculatorLegend(page);
+}
+
 void updateInput() {
   const bool keyActivity = keypad.getKeys();
 
@@ -299,7 +304,7 @@ void drawCalculatorScreen() {
   }
 
   display.drawStr(0, 42, statusBuffer);
-  display.drawStr(0, 54, calculatorPrimaryLegend());
+  display.drawStr(0, 54, activeLegend());
 }
 
 }  // namespace

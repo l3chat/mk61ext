@@ -50,8 +50,16 @@ CalculatorAction translateKeyToCalculatorAction(char keyPressed) {
       return CalculatorAction::Divide;
     case 'e':
       return CalculatorAction::Enter;
+    case 'd':
+      return CalculatorAction::EnterExponent;
     case 's':
       return CalculatorAction::ChangeSign;
+    case 'q':
+      return CalculatorAction::SquareRoot;
+    case 'r':
+      return CalculatorAction::Reciprocal;
+    case 'p':
+      return CalculatorAction::Pi;
     case 'x':
       return CalculatorAction::ClearX;
     case 'c':
@@ -59,16 +67,25 @@ CalculatorAction translateKeyToCalculatorAction(char keyPressed) {
     case 'u':
       return CalculatorAction::SwapXY;
     case 'v':
-      return CalculatorAction::Drop;
+      return CalculatorAction::RollDown;
     default:
       return CalculatorAction::None;
   }
 }
 
-const char *calculatorPrimaryLegend() {
-  return "eEnt uXy vDrp";
+const char *calculatorLegend(uint8_t page) {
+  switch (page) {
+    case 0:
+      return "eEnt dEex uXy vRdn";
+    case 1:
+      return "sChs xCx qSrt r1/x";
+    case 2:
+      return "pPi cClr a+/b-";
+    default:
+      return "";
+  }
 }
 
-const char *calculatorSecondaryLegend() {
-  return "s+/- xClx cClr";
+uint8_t calculatorLegendPageCount() {
+  return 3;
 }

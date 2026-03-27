@@ -4,7 +4,7 @@
 #include "RpnCalculator.h"
 
 CalculatorAction translateKeyToCalculatorAction(char keyPressed);
-const char *calculatorPrimaryLegend();
-const char *calculatorSecondaryLegend();
+const char *calculatorLegend(uint8_t page);
+uint8_t calculatorLegendPageCount();
 
 #endif

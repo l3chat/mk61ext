@@ -8,6 +8,8 @@ bool isNegative(double value) {
   return std::signbit(value);
 }
 
+constexpr double kPi = 3.14159265358979323846;
+
 }  // namespace
 
 RpnCalculator::RpnCalculator() {
@@ -19,6 +21,10 @@ void RpnCalculator::reset() {
   entering_ = false;
   decimalMode_ = false;
   decimalScale_ = 0.1;
+  enteringExponent_ = false;
+  exponentMantissa_ = 0.0;
+  exponentValue_ = 0;
+  exponentSign_ = 1;
   error_ = CalculatorError::None;
 }
 
@@ -50,6 +56,8 @@ bool RpnCalculator::apply(CalculatorAction action) {
       return enterDecimalPoint();
     case CalculatorAction::Enter:
       return pressEnter();
+    case CalculatorAction::EnterExponent:
+      return pressEnterExponent();
     case CalculatorAction::ChangeSign:
       return toggleSign();
     case CalculatorAction::Add:
@@ -57,10 +65,16 @@ bool RpnCalculator::apply(CalculatorAction action) {
     case CalculatorAction::Multiply:
     case CalculatorAction::Divide:
       return performBinaryOperation(action);
+    case CalculatorAction::Reciprocal:
+      return reciprocal();
+    case CalculatorAction::SquareRoot:
+      return squareRoot();
+    case CalculatorAction::Pi:
+      return setPi();
     case CalculatorAction::SwapXY:
       return swapXY();
-    case CalculatorAction::Drop:
-      return drop();
+    case CalculatorAction::RollDown:
+      return rollDown();
     case CalculatorAction::ClearX:
       return clearX();
     case CalculatorAction::ClearAll:
@@ -85,6 +99,8 @@ const char *RpnCalculator::errorMessage() const {
       return "";
     case CalculatorError::DivideByZero:
       return "divide by zero";
+    case CalculatorError::NegativeSquareRoot:
+      return "negative sqrt";
   }
 
   return "unknown error";
@@ -97,6 +113,12 @@ bool RpnCalculator::enterDigit(uint8_t digit) {
 
   if (!entering_) {
     startEntry();
+  }
+
+  if (enteringExponent_) {
+    exponentValue_ = (exponentValue_ * 10) + digit;
+    updateExponentValue();
+    return true;
   }
 
   if (decimalMode_) {
@@ -124,12 +146,35 @@ bool RpnCalculator::enterDecimalPoint() {
     startEntry();
   }
 
+  if (enteringExponent_) {
+    return false;
+  }
+
   if (decimalMode_) {
     return false;
   }
 
   decimalMode_ = true;
   decimalScale_ = 0.1;
+  return true;
+}
+
+bool RpnCalculator::pressEnterExponent() {
+  if (hasError()) {
+    clearX();
+  }
+
+  if (enteringExponent_) {
+    return false;
+  }
+
+  entering_ = true;
+  decimalMode_ = false;
+  enteringExponent_ = true;
+  exponentMantissa_ = stack_[0];
+  exponentValue_ = 0;
+  exponentSign_ = 1;
+  updateExponentValue();
   return true;
 }
 
@@ -148,7 +193,55 @@ bool RpnCalculator::toggleSign() {
     clearX();
   }
 
+  if (enteringExponent_) {
+    exponentSign_ = -exponentSign_;
+    updateExponentValue();
+    return true;
+  }
+
   stack_[0] = -stack_[0];
+  return true;
+}
+
+bool RpnCalculator::reciprocal() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+
+  if (stack_[0] == 0.0) {
+    error_ = CalculatorError::DivideByZero;
+    return false;
+  }
+
+  stack_[0] = 1.0 / stack_[0];
+  return true;
+}
+
+bool RpnCalculator::squareRoot() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+
+  if (stack_[0] < 0.0) {
+    error_ = CalculatorError::NegativeSquareRoot;
+    return false;
+  }
+
+  stack_[0] = std::sqrt(stack_[0]);
+  return true;
+}
+
+bool RpnCalculator::setPi() {
+  if (hasError()) {
+    clearX();
+  }
+
+  stack_[0] = kPi;
+  finishEntry();
   return true;
 }
 
@@ -165,14 +258,17 @@ bool RpnCalculator::swapXY() {
   return true;
 }
 
-bool RpnCalculator::drop() {
+bool RpnCalculator::rollDown() {
   if (hasError()) {
     return false;
   }
 
   finishEntry();
+  const double x = stack_[0];
   stack_[0] = stack_[1];
-  dropStack();
+  stack_[1] = stack_[2];
+  stack_[2] = stack_[3];
+  stack_[3] = x;
   return true;
 }
 
@@ -230,16 +326,28 @@ void RpnCalculator::startEntry() {
   entering_ = true;
   decimalMode_ = false;
   decimalScale_ = 0.1;
+  enteringExponent_ = false;
+  exponentMantissa_ = 0.0;
+  exponentValue_ = 0;
+  exponentSign_ = 1;
 }
 
 void RpnCalculator::finishEntry() {
   entering_ = false;
   decimalMode_ = false;
   decimalScale_ = 0.1;
+  enteringExponent_ = false;
+  exponentMantissa_ = 0.0;
+  exponentValue_ = 0;
+  exponentSign_ = 1;
 }
 
 void RpnCalculator::clearError() {
   error_ = CalculatorError::None;
+}
+
+void RpnCalculator::updateExponentValue() {
+  stack_[0] = exponentMantissa_ * std::pow(10.0, exponentSign_ * exponentValue_);
 }
 
 void RpnCalculator::liftStack() {
