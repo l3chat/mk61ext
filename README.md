@@ -38,3 +38,7 @@ See [docs/manual-test.md](docs/manual-test.md) for the current hardware bring-up
 ## EEPROM
 
 The firmware expects an AT24C256C-compatible EEPROM on Pico `GPIO 14`/`GPIO 15` at I2C address `0x50`. The exact pin wiring is documented in [docs/manual-test.md](docs/manual-test.md).
+
+## Current Firmware
+
+The current scaffold now includes a hardware-independent RPN calculator core plus a provisional on-device stack view. The keypad mapping is temporary and documented in [docs/manual-test.md](docs/manual-test.md).

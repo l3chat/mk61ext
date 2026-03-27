@@ -13,9 +13,9 @@ This checklist matches the current firmware scaffold in `src/main.cpp`.
 1. Power on or reset the Pico.
 2. The display should show `memory found` for about 3 seconds.
 3. After the splash screen, the main screen should show:
-   - a running timer at the top,
-   - `act:<n> br:<value>` on the first diagnostics line,
-   - `evt:<key> <state>` on the second diagnostics line.
+   - four stack lines labeled `T:`, `Z:`, `Y:`, and `X:` or `X>`,
+   - a status line showing the last key event or a calculator error,
+   - a bottom legend line: `E=e C=c X=x S=s a+/b-`.
 
 If the display instead shows `no memory found`, the external EEPROM on GPIO 14/15 is not responding.
 
@@ -47,11 +47,32 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 ## Functional Key Checks
 
 1. Press `a` repeatedly.
-2. Confirm the backlight brightens in steps and `br:` moves toward `256`.
+2. Confirm the backlight brightens in steps.
 3. Press `b` repeatedly.
-4. Confirm the backlight dims in steps and `br:` drops toward `0`.
-5. Press `d`.
-6. Confirm the timer resets to near `00.00.00`.
+4. Confirm the backlight dims in steps.
+
+## Calculator Smoke Test
+
+The current provisional calculator key mapping is:
+
+- digits: `0`-`9`
+- decimal point: `.`
+- operations: `+`, `-`, `*`, `/`
+- `e`: `ENTER`
+- `c`: clear all
+- `x`: clear X
+- `s`: change sign
+
+1. Press `2`, then `e`, then `3`, then `+`.
+2. Confirm the `X` register shows `5`.
+3. Press `9`, then `e`, then `4`, then `/`.
+4. Confirm the `X` register shows `2.25`.
+5. Press `s`.
+6. Confirm the `X` register changes sign.
+7. Press `x`.
+8. Confirm `X` resets to `0`.
+9. Press `c`.
+10. Confirm `X`, `Y`, `Z`, and `T` all reset to `0`.
 
 ## Multi-Key Hold Regression Check
 
@@ -73,4 +94,4 @@ This verifies the recent keypad timing fix.
   - row 5: `4 5 6 + *`
   - row 6: `1 2 3 u v`
   - row 7: `0 . x y z`
-- The current firmware is still a hardware bring-up scaffold, not the final calculator UI.
+- The calculator screen and key mapping are still provisional and may change once the final MK-61 key layout is decided.

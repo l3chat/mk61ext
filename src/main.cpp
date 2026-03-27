@@ -84,11 +84,13 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 
+#include <cmath>
 #include <cstdio>
 
 #include <SparkFun_External_EEPROM.h>  // http://librarymanager/All#SparkFun_External_EEPROM
 
 #include "Keypad.h"
+#include "RpnCalculator.h"
 
 namespace {
 
@@ -121,7 +123,6 @@ constexpr uint8_t kEepromSdaPin = 14;
 constexpr uint8_t kEepromSclPin = 15;
 constexpr uint32_t kEepromClockHz = 400000;
 constexpr uint16_t kDisplayContrast = 20;
-constexpr unsigned long kWorkBreakThresholdSeconds = 1800;
 constexpr uint16_t kLoopDelayMs = 100;
 
 struct KeypadDiagnostics {
@@ -134,6 +135,7 @@ struct KeypadDiagnostics {
 Keypad keypad(makeKeymap(kKeyMap), kRowPins, kColumnPins, kRowCount, kColumnCount);
 TwoWire eepromWire(kEepromSdaPin, kEepromSclPin);
 ExternalEEPROM eeprom;
+RpnCalculator calculator;
 U8G2_ST7565_ERC12864_F_4W_SW_SPI display(
     U8G2_R0,
     kDisplayClockPin,
@@ -143,7 +145,6 @@ U8G2_ST7565_ERC12864_F_4W_SW_SPI display(
     kDisplayResetPin);
 
 int brightness = 256;
-unsigned long startSeconds = 0;
 KeypadDiagnostics keypadDiagnostics;
 
 void applyBrightness() {
@@ -172,13 +173,70 @@ void decreaseBrightness() {
   applyBrightness();
 }
 
+CalculatorAction digitToAction(char keyPressed) {
+  switch (keyPressed) {
+    case '0':
+      return CalculatorAction::Digit0;
+    case '1':
+      return CalculatorAction::Digit1;
+    case '2':
+      return CalculatorAction::Digit2;
+    case '3':
+      return CalculatorAction::Digit3;
+    case '4':
+      return CalculatorAction::Digit4;
+    case '5':
+      return CalculatorAction::Digit5;
+    case '6':
+      return CalculatorAction::Digit6;
+    case '7':
+      return CalculatorAction::Digit7;
+    case '8':
+      return CalculatorAction::Digit8;
+    case '9':
+      return CalculatorAction::Digit9;
+    default:
+      return CalculatorAction::None;
+  }
+}
+
+CalculatorAction translateKeyToCalculatorAction(char keyPressed) {
+  const CalculatorAction digitAction = digitToAction(keyPressed);
+  if (digitAction != CalculatorAction::None) {
+    return digitAction;
+  }
+
+  switch (keyPressed) {
+    case '.':
+      return CalculatorAction::DecimalPoint;
+    case '+':
+      return CalculatorAction::Add;
+    case '-':
+      return CalculatorAction::Subtract;
+    case '*':
+      return CalculatorAction::Multiply;
+    case '/':
+      return CalculatorAction::Divide;
+    case 'e':
+      return CalculatorAction::Enter;
+    case 's':
+      return CalculatorAction::ChangeSign;
+    case 'x':
+      return CalculatorAction::ClearX;
+    case 'c':
+      return CalculatorAction::ClearAll;
+    default:
+      return CalculatorAction::None;
+  }
+}
+
 void handlePressedKey(char keyPressed) {
   if (keyPressed == 'a') {
     increaseBrightness();
   } else if (keyPressed == 'b') {
     decreaseBrightness();
-  } else if (keyPressed == 'd') {
-    startSeconds = millis() / 1000;
+  } else {
+    calculator.apply(translateKeyToCalculatorAction(keyPressed));
   }
 }
 
@@ -197,7 +255,7 @@ const char *keyStateName(KeyState state) {
   return "?";
 }
 
-void updateKeypadDiagnostics() {
+void updateInput() {
   const bool keyActivity = keypad.getKeys();
 
   byte activeKeys = 0;
@@ -224,6 +282,20 @@ void updateKeypadDiagnostics() {
   }
 
   keypadDiagnostics.activeKeys = activeKeys;
+}
+
+void formatStackValue(double value, char *buffer, size_t bufferSize) {
+  const double normalizedValue = (std::fabs(value) < 1e-12) ? 0.0 : value;
+  snprintf(buffer, bufferSize, "%.10g", normalizedValue);
+}
+
+void drawStackLine(int y, const char *label, double value) {
+  char valueBuffer[18];
+  char lineBuffer[22];
+
+  formatStackValue(value, valueBuffer, sizeof(valueBuffer));
+  snprintf(lineBuffer, sizeof(lineBuffer), "%s %s", label, valueBuffer);
+  display.drawStr(0, y, lineBuffer);
 }
 
 void setupDisplay() {
@@ -259,69 +331,31 @@ void setupEeprom() {
   eeprom.disablePollForWriteComplete();
 }
 
-void drawElapsedTime() {
-  unsigned long elapsedSeconds = millis() / 1000;
-  elapsedSeconds -= startSeconds;
-
-  display.setFont(u8g2_font_t0_15b_mr);
-  if (elapsedSeconds > kWorkBreakThresholdSeconds) {
-    display.drawStr(0, 0, "   take break");
-  } else {
-    display.drawStr(0, 0, "12345678901234567890");
-  }
-
-  const int secondsOnes = elapsedSeconds % 10;
-  elapsedSeconds /= 10;
-  const int secondsTens = elapsedSeconds % 6;
-  elapsedSeconds /= 6;
-  const int minutesOnes = elapsedSeconds % 10;
-  elapsedSeconds /= 10;
-  const int minutesTens = elapsedSeconds % 6;
-  elapsedSeconds /= 6;
-  elapsedSeconds %= 24;
-  const int hoursOnes = elapsedSeconds % 10;
-  elapsedSeconds /= 10;
-  const int hoursTens = elapsedSeconds % 10;
-
-  const char separator = (secondsOnes % 2 == 0) ? '.' : ' ';
-  char timeBuffer[9];
-  snprintf(timeBuffer,
-           sizeof(timeBuffer),
-           "%d%d%c%d%d%c%d%d",
-           hoursTens,
-           hoursOnes,
-           separator,
-           minutesTens,
-           minutesOnes,
-           separator,
-           secondsTens,
-           secondsOnes);
-
-  display.setFont(u8g2_font_inb16_mr);
-  display.drawStr(0, 16, timeBuffer);
-  display.setFont(u8g2_font_t0_15b_mr);
-}
-
-void drawStatus() {
-  char summaryBuffer[20];
-  char eventBuffer[20];
+void drawCalculatorScreen() {
+  char eventBuffer[22];
+  const CalculatorStack stack = calculator.stack();
   const char keyLabel = keypadDiagnostics.hasEvent ? keypadDiagnostics.lastKey : '-';
+  const char *xLabel = calculator.isEntering() ? "X>" : "X:";
 
   display.setFont(u8g2_font_6x10_mr);
-  snprintf(summaryBuffer,
-           sizeof(summaryBuffer),
-           "act:%u br:%d",
-           keypadDiagnostics.activeKeys,
-           brightness);
-  display.drawStr(0, 34, summaryBuffer);
+  drawStackLine(0, "T:", stack.t);
+  drawStackLine(10, "Z:", stack.z);
+  drawStackLine(20, "Y:", stack.y);
+  drawStackLine(30, xLabel, stack.x);
 
-  snprintf(eventBuffer,
-           sizeof(eventBuffer),
-           "evt:%c %s",
-           keyLabel,
-           keypadDiagnostics.hasEvent ? keyStateName(keypadDiagnostics.lastState) : "-");
-  display.drawStr(0, 44, eventBuffer);
-  display.drawStr(0, 54, "hold>0.5s  a+/b-/d");
+  if (calculator.hasError()) {
+    snprintf(eventBuffer, sizeof(eventBuffer), "err:%s", calculator.errorMessage());
+  } else {
+    snprintf(eventBuffer,
+             sizeof(eventBuffer),
+             "evt:%c %s act:%u",
+             keyLabel,
+             keypadDiagnostics.hasEvent ? keyStateName(keypadDiagnostics.lastState) : "-",
+             keypadDiagnostics.activeKeys);
+  }
+
+  display.drawStr(0, 42, eventBuffer);
+  display.drawStr(0, 54, "E=e C=c X=x S=s a+/b-");
 }
 
 }  // namespace
@@ -333,17 +367,12 @@ void setup() {
   setupEeprom();
   display.sendBuffer();
   delay(3000);
-
-  startSeconds = millis() / 1000;
 }
 
 void loop() {
   display.clearBuffer();
-  display.setFont(u8g2_font_t0_15b_mr);
-
-  drawElapsedTime();
-  updateKeypadDiagnostics();
-  drawStatus();
+  updateInput();
+  drawCalculatorScreen();
 
   display.sendBuffer();
   delay(kLoopDelayMs);
