@@ -1,0 +1,5 @@
+{
+  "terminal.integrated.env.linux": {
+    "PATH": "/home/lechat/.platformio/penv/bin:${env:PATH}"
+  }
+}
