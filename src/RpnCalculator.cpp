@@ -4,11 +4,11 @@
 
 namespace {
 
-bool isNegative(double value) {
+bool isNegative(CalculatorValue value) {
   return std::signbit(value);
 }
 
-constexpr double kPi = 3.14159265358979323846;
+constexpr CalculatorValue kPi = 3.14159265358979323846;
 
 }  // namespace
 
@@ -122,7 +122,7 @@ bool RpnCalculator::enterDigit(uint8_t digit) {
   }
 
   if (decimalMode_) {
-    const double delta = static_cast<double>(digit) * decimalScale_;
+    const CalculatorValue delta = static_cast<CalculatorValue>(digit) * decimalScale_;
     stack_[0] = isNegative(stack_[0]) ? stack_[0] - delta : stack_[0] + delta;
     decimalScale_ /= 10.0;
     return true;
@@ -252,7 +252,7 @@ bool RpnCalculator::swapXY() {
 
   finishEntry();
 
-  const double x = stack_[0];
+  const CalculatorValue x = stack_[0];
   stack_[0] = stack_[1];
   stack_[1] = x;
   return true;
@@ -264,7 +264,7 @@ bool RpnCalculator::rollDown() {
   }
 
   finishEntry();
-  const double x = stack_[0];
+  const CalculatorValue x = stack_[0];
   stack_[0] = stack_[1];
   stack_[1] = stack_[2];
   stack_[2] = stack_[3];
@@ -291,9 +291,9 @@ bool RpnCalculator::performBinaryOperation(CalculatorAction action) {
 
   finishEntry();
 
-  const double x = stack_[0];
-  const double y = stack_[1];
-  double result = 0.0;
+  const CalculatorValue x = stack_[0];
+  const CalculatorValue y = stack_[1];
+  CalculatorValue result = 0.0;
 
   switch (action) {
     case CalculatorAction::Add:

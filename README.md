@@ -6,16 +6,16 @@ The active code lives in `src/` and `include/`. The `_archive/` directory is his
 
 ## Build
 
-`pio` is not on `PATH` in this environment, so use:
+In the VS Code integrated terminal for this workspace, `pio` is on `PATH`, so use:
 
 ```bash
-/home/lechat/.platformio/penv/bin/platformio run
+pio run
 ```
 
 ## Flash
 
 ```bash
-/home/lechat/.platformio/penv/bin/platformio run -t upload
+pio run -t upload
 ```
 
 The custom upload helper will:
@@ -28,7 +28,7 @@ The custom upload helper will:
 If auto-detection ever picks the wrong device, override the serial port explicitly:
 
 ```bash
-/home/lechat/.platformio/penv/bin/platformio run -t upload --upload-port /dev/ttyACM0
+pio run -t upload --upload-port /dev/ttyACM0
 ```
 
 ## Manual Test
@@ -41,4 +41,6 @@ The firmware expects an AT24C256C-compatible EEPROM on Pico `GPIO 14`/`GPIO 15` 
 
 ## Current Firmware
 
-The current scaffold now includes a hardware-independent RPN calculator core plus a calculator-style on-device screen with an inverted status line and four equal-height stack rows (`T`, `Z`, `Y`, `X`). The keypad mapping lives in a dedicated calculator keymap layer and currently follows an MK-61-inspired run-mode subset documented in [docs/manual-test.md](docs/manual-test.md).
+The current scaffold now includes a hardware-independent RPN calculator core plus a calculator-style on-device screen with an inverted status line and four equal-height stack rows (`T`, `Z`, `Y`, `X`). The keypad mapping lives in a dedicated calculator keymap layer and currently follows an MK-61-inspired run-mode subset documented in [docs/manual-test.md](docs/manual-test.md). The stack renderer now tries to show up to 15 significant digits per value while still fitting the display width.
+
+The calculator core now treats all register values as 64-bit floating point (`double`) and enforces that assumption with compile-time checks, so the build will fail on any toolchain that downgrades `double` precision.

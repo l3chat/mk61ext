@@ -129,6 +129,8 @@ constexpr int kDisplayWidth = 128;
 constexpr int kStatusBarHeight = 8;
 constexpr int kStackFirstY = 10;
 constexpr int kStackRowHeight = 14;
+constexpr int kStackValueMaxPrecision = 15;
+constexpr int kStackValueMinGap = 4;
 
 struct KeypadDiagnostics {
   char lastKey = NO_KEY;
@@ -224,8 +226,8 @@ void updateInput() {
   }
 }
 
-void formatStackValue(double value, char *buffer, size_t bufferSize, int precision) {
-  const double normalizedValue = (std::fabs(value) < 1e-12) ? 0.0 : value;
+void formatStackValue(CalculatorValue value, char *buffer, size_t bufferSize, int precision) {
+  const CalculatorValue normalizedValue = (std::fabs(value) < 1e-12) ? 0.0 : value;
   snprintf(buffer, bufferSize, "%.*g", precision, normalizedValue);
 }
 
@@ -233,12 +235,28 @@ void drawRightAlignedText(int rightEdge, int y, const char *text) {
   display.drawStr(rightEdge - display.getStrWidth(text), y, text);
 }
 
-void drawStackLine(int y, const char *label, double value) {
-  char valueBuffer[24];
+void formatStackValueToFit(CalculatorValue value,
+                           char *buffer,
+                           size_t bufferSize,
+                           int maxPixelWidth) {
+  for (int precision = kStackValueMaxPrecision; precision >= 1; --precision) {
+    formatStackValue(value, buffer, bufferSize, precision);
+    if (display.getStrWidth(buffer) <= maxPixelWidth) {
+      return;
+    }
+  }
 
-  formatStackValue(value, valueBuffer, sizeof(valueBuffer), 10);
+  formatStackValue(value, buffer, bufferSize, 1);
+}
+
+void drawStackLine(int y, const char *label, CalculatorValue value) {
+  char valueBuffer[32];
+
   display.setFont(u8g2_font_6x10_mr);
   display.drawStr(0, y, label);
+  const int labelWidth = display.getStrWidth(label);
+  const int maxValueWidth = kDisplayWidth - labelWidth - kStackValueMinGap;
+  formatStackValueToFit(value, valueBuffer, sizeof(valueBuffer), maxValueWidth);
   drawRightAlignedText(kDisplayWidth - 1, y, valueBuffer);
 }
 

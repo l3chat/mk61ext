@@ -3,6 +3,13 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
+
+using CalculatorValue = double;
+
+static_assert(sizeof(CalculatorValue) == 8, "mk61ext requires 64-bit floating-point values");
+static_assert(std::numeric_limits<CalculatorValue>::digits == 53,
+              "mk61ext expects IEEE-754 double precision");
 
 enum class CalculatorAction : uint8_t {
   None,
@@ -40,10 +47,10 @@ enum class CalculatorError : uint8_t {
 };
 
 struct CalculatorStack {
-  double x;
-  double y;
-  double z;
-  double t;
+  CalculatorValue x;
+  CalculatorValue y;
+  CalculatorValue z;
+  CalculatorValue t;
 };
 
 class RpnCalculator {
@@ -82,12 +89,12 @@ private:
   void liftStack();
   void dropStack();
 
-  std::array<double, 4> stack_{{0.0, 0.0, 0.0, 0.0}};
+  std::array<CalculatorValue, 4> stack_{{0.0, 0.0, 0.0, 0.0}};
   bool entering_ = false;
   bool decimalMode_ = false;
   bool enteringExponent_ = false;
-  double decimalScale_ = 0.1;
-  double exponentMantissa_ = 0.0;
+  CalculatorValue decimalScale_ = 0.1;
+  CalculatorValue exponentMantissa_ = 0.0;
   int exponentValue_ = 0;
   int exponentSign_ = 1;
   CalculatorError error_ = CalculatorError::None;

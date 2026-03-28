@@ -5,7 +5,7 @@ This checklist matches the current firmware scaffold in `src/main.cpp`.
 ## Flash
 
 ```bash
-/home/lechat/.platformio/penv/bin/platformio run -t upload
+pio run -t upload
 ```
 
 ## Expected Boot Behavior
@@ -69,6 +69,8 @@ The current provisional MK-61-inspired run-mode subset is:
 - `c`: clear all
 - `a` / `b`: backlight brighter / dimmer
 
+The calculator core stores stack values as 64-bit floating point numbers. The current screen now tries to show up to 15 significant digits while still fitting each value into the 128x64 stack layout.
+
 1. Press `2`, then `e`, then `3`, then `+`.
 2. Confirm the `X` register shows `5`.
 3. Press `9`, then `e`, then `4`, then `/`.
@@ -90,11 +92,25 @@ The current provisional MK-61-inspired run-mode subset is:
 19. Press `4`, then `r`.
 20. Confirm `X` becomes `0.25`.
 21. Press `p`.
-22. Confirm `X` becomes approximately `3.141592654`.
+22. Confirm `X` becomes approximately `3.14159265358979`.
 23. Press `1`, then `d`, then `3`.
 24. Confirm `X` becomes `1000`.
 25. Press `1`, then `d`, then `s`, then `2`.
 26. Confirm `X` becomes `0.01`.
+
+## 64-Bit Precision Spot Check
+
+The firmware now fails to build if the toolchain does not provide a real 64-bit `double`, so a successful `pio run` already confirms the compiler-side requirement.
+
+This extra keypad test is still useful on hardware because it checks that the calculator path is really preserving that precision end-to-end:
+
+1. Press `c`.
+2. Press `1`, then `d`, then `8`.
+3. Confirm `X` shows `1e+08`.
+4. Press `e`, then `1`, then `+`.
+5. Confirm `X` shows `100000001`.
+
+If `X` stays at `100000000` instead, the calculator is behaving like a 32-bit float path somewhere.
 
 ## Multi-Key Hold Regression Check
 
