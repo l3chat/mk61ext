@@ -55,6 +55,7 @@ public:
 
   CalculatorStack stack() const;
   bool isEntering() const { return entering_; }
+  bool isEnteringExponent() const { return enteringExponent_; }
   bool hasError() const { return error_ != CalculatorError::None; }
   CalculatorError error() const { return error_; }
   const char *errorMessage() const;

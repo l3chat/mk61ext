@@ -125,11 +125,14 @@ constexpr uint8_t kEepromSclPin = 15;
 constexpr uint32_t kEepromClockHz = 400000;
 constexpr uint16_t kDisplayContrast = 20;
 constexpr uint16_t kLoopDelayMs = 100;
+constexpr int kDisplayWidth = 128;
+constexpr int kStatusBarHeight = 8;
+constexpr int kStackFirstY = 10;
+constexpr int kStackRowHeight = 14;
 
 struct KeypadDiagnostics {
   char lastKey = NO_KEY;
   KeyState lastState = IDLE;
-  byte activeKeys = 0;
   bool hasEvent = false;
 };
 
@@ -199,21 +202,11 @@ const char *keyStateName(KeyState state) {
   return "?";
 }
 
-const char *activeLegend() {
-  const uint8_t page = (millis() / 2000U) % calculatorLegendPageCount();
-  return calculatorLegend(page);
-}
-
 void updateInput() {
   const bool keyActivity = keypad.getKeys();
 
-  byte activeKeys = 0;
   for (byte index = 0; index < keypad.numKeys(); index++) {
     const Key &key = keypad.key[index];
-
-    if ((key.kchar != NO_KEY) && (key.kstate != IDLE)) {
-      activeKeys++;
-    }
 
     if (!keyActivity) {
       continue;
@@ -229,22 +222,24 @@ void updateInput() {
       }
     }
   }
-
-  keypadDiagnostics.activeKeys = activeKeys;
 }
 
-void formatStackValue(double value, char *buffer, size_t bufferSize) {
+void formatStackValue(double value, char *buffer, size_t bufferSize, int precision) {
   const double normalizedValue = (std::fabs(value) < 1e-12) ? 0.0 : value;
-  snprintf(buffer, bufferSize, "%.10g", normalizedValue);
+  snprintf(buffer, bufferSize, "%.*g", precision, normalizedValue);
+}
+
+void drawRightAlignedText(int rightEdge, int y, const char *text) {
+  display.drawStr(rightEdge - display.getStrWidth(text), y, text);
 }
 
 void drawStackLine(int y, const char *label, double value) {
-  char valueBuffer[18];
-  char lineBuffer[22];
+  char valueBuffer[24];
 
-  formatStackValue(value, valueBuffer, sizeof(valueBuffer));
-  snprintf(lineBuffer, sizeof(lineBuffer), "%s %s", label, valueBuffer);
-  display.drawStr(0, y, lineBuffer);
+  formatStackValue(value, valueBuffer, sizeof(valueBuffer), 10);
+  display.setFont(u8g2_font_6x10_mr);
+  display.drawStr(0, y, label);
+  drawRightAlignedText(kDisplayWidth - 1, y, valueBuffer);
 }
 
 void setupDisplay() {
@@ -280,31 +275,62 @@ void setupEeprom() {
   eeprom.disablePollForWriteComplete();
 }
 
-void drawCalculatorScreen() {
-  char statusBuffer[22];
-  const CalculatorStack stack = calculator.stack();
-  const char keyLabel = keypadDiagnostics.hasEvent ? keypadDiagnostics.lastKey : '-';
-  const char *xLabel = calculator.isEntering() ? "X>" : "X:";
-
-  display.setFont(u8g2_font_6x10_mr);
-  drawStackLine(0, "T:", stack.t);
-  drawStackLine(10, "Z:", stack.z);
-  drawStackLine(20, "Y:", stack.y);
-  drawStackLine(30, xLabel, stack.x);
-
+const char *calculatorModeName() {
   if (calculator.hasError()) {
-    snprintf(statusBuffer, sizeof(statusBuffer), "err:%s", calculator.errorMessage());
-  } else {
-    snprintf(statusBuffer,
-             sizeof(statusBuffer),
-             "evt:%c %s act:%u",
-             keyLabel,
-             keypadDiagnostics.hasEvent ? keyStateName(keypadDiagnostics.lastState) : "-",
-             keypadDiagnostics.activeKeys);
+    return "ERR";
   }
 
-  display.drawStr(0, 42, statusBuffer);
-  display.drawStr(0, 54, activeLegend());
+  if (calculator.isEnteringExponent()) {
+    return "EEX";
+  }
+
+  if (calculator.isEntering()) {
+    return "ENT";
+  }
+
+  return "RUN";
+}
+
+void formatEventLabel(char *buffer, size_t bufferSize) {
+  if (!keypadDiagnostics.hasEvent) {
+    snprintf(buffer, bufferSize, "--");
+    return;
+  }
+
+  snprintf(buffer, bufferSize, "%c %s", keypadDiagnostics.lastKey, keyStateName(keypadDiagnostics.lastState));
+}
+
+void drawStatusBar() {
+  char leftBuffer[24];
+  char rightBuffer[18];
+
+  if (calculator.hasError()) {
+    snprintf(leftBuffer, sizeof(leftBuffer), "ERR %s", calculator.errorMessage());
+    rightBuffer[0] = '\0';
+  } else {
+    snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s", calculatorModeName());
+    formatEventLabel(rightBuffer, sizeof(rightBuffer));
+  }
+
+  display.setFont(u8g2_font_5x7_mr);
+  display.drawBox(0, 0, kDisplayWidth, kStatusBarHeight);
+  display.setDrawColor(0);
+  display.drawStr(2, 1, leftBuffer);
+  if (rightBuffer[0] != '\0') {
+    drawRightAlignedText(kDisplayWidth - 2, 1, rightBuffer);
+  }
+  display.setDrawColor(1);
+}
+
+void drawCalculatorScreen() {
+  const CalculatorStack stack = calculator.stack();
+
+  drawStatusBar();
+
+  drawStackLine(kStackFirstY + (0 * kStackRowHeight), "T:", stack.t);
+  drawStackLine(kStackFirstY + (1 * kStackRowHeight), "Z:", stack.z);
+  drawStackLine(kStackFirstY + (2 * kStackRowHeight), "Y:", stack.y);
+  drawStackLine(kStackFirstY + (3 * kStackRowHeight), calculator.isEntering() ? "X>" : "X:", stack.x);
 }
 
 }  // namespace

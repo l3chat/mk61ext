@@ -13,9 +13,9 @@ This checklist matches the current firmware scaffold in `src/main.cpp`.
 1. Power on or reset the Pico.
 2. The display should show `memory found` for about 3 seconds.
 3. After the splash screen, the main screen should show:
-   - four stack lines labeled `T:`, `Z:`, `Y:`, and `X:` or `X>`,
-   - a status line showing the last key event or a calculator error,
-   - a bottom legend line cycling through temporary key-help pages.
+   - a filled top status bar such as `MK61 RUN`,
+   - four equal-height stack lines labeled `T:`, `Z:`, `Y:`, and `X:` or `X>`,
+   - no framed register boxes or separator borders in the stack area.
 
 If the display instead shows `no memory found`, the external EEPROM on GPIO 14/15 is not responding.
 
@@ -37,12 +37,11 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 ## Keypad And Backlight Test
 
 1. Press any keypad button once.
-2. Confirm `evt:` updates to the matching key character and `PRESS`.
-3. Confirm `act:` rises while the key is held and returns to `0` after release.
-4. Hold the same key for more than 0.5 seconds.
-5. Confirm `evt:` changes to `HOLD`.
-6. Release the key.
-7. Confirm `evt:` changes to `REL`.
+2. Confirm the right side of the top status bar updates to the matching key character and `PRESS`.
+3. Hold the same key for more than 0.5 seconds.
+4. Confirm the status bar changes to `HOLD`.
+5. Release the key.
+6. Confirm the status bar changes to `REL`.
 
 ## Functional Key Checks
 
@@ -118,4 +117,5 @@ This verifies the recent keypad timing fix.
   - row 6: `1 2 3 u v`
   - row 7: `0 . x y z`
 - This is still a prototype keypad layout over the custom 8x5 matrix, but it now follows a more deliberate MK-61-inspired run-mode subset.
-- The bottom legend line on-screen now rotates through several short key-help pages. The full provisional mapping is listed above.
+- The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
+- The stack area now uses four uniform text rows without frames or separator lines.

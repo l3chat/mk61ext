@@ -41,4 +41,4 @@ The firmware expects an AT24C256C-compatible EEPROM on Pico `GPIO 14`/`GPIO 15` 
 
 ## Current Firmware
 
-The current scaffold now includes a hardware-independent RPN calculator core plus a provisional on-device stack view. The keypad mapping lives in a dedicated calculator keymap layer and currently follows an MK-61-inspired run-mode subset documented in [docs/manual-test.md](docs/manual-test.md).
+The current scaffold now includes a hardware-independent RPN calculator core plus a calculator-style on-device screen with an inverted status line and four equal-height stack rows (`T`, `Z`, `Y`, `X`). The keypad mapping lives in a dedicated calculator keymap layer and currently follows an MK-61-inspired run-mode subset documented in [docs/manual-test.md](docs/manual-test.md).
