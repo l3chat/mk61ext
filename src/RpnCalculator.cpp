@@ -22,6 +22,7 @@ void RpnCalculator::reset() {
   decimalMode_ = false;
   decimalScale_ = 0.1;
   enteringExponent_ = false;
+  stackLiftEnabled_ = false;
   exponentMantissa_ = 0.0;
   exponentValue_ = 0;
   exponentSign_ = 1;
@@ -171,6 +172,7 @@ bool RpnCalculator::pressEnterExponent() {
   entering_ = true;
   decimalMode_ = false;
   enteringExponent_ = true;
+  stackLiftEnabled_ = false;
   exponentMantissa_ = stack_[0];
   exponentValue_ = 0;
   exponentSign_ = 1;
@@ -185,6 +187,7 @@ bool RpnCalculator::pressEnter() {
 
   finishEntry();
   liftStack();
+  stackLiftEnabled_ = false;
   return true;
 }
 
@@ -200,6 +203,7 @@ bool RpnCalculator::toggleSign() {
   }
 
   stack_[0] = -stack_[0];
+  stackLiftEnabled_ = !entering_;
   return true;
 }
 
@@ -216,6 +220,7 @@ bool RpnCalculator::reciprocal() {
   }
 
   stack_[0] = 1.0 / stack_[0];
+  stackLiftEnabled_ = true;
   return true;
 }
 
@@ -232,6 +237,7 @@ bool RpnCalculator::squareRoot() {
   }
 
   stack_[0] = std::sqrt(stack_[0]);
+  stackLiftEnabled_ = true;
   return true;
 }
 
@@ -242,6 +248,7 @@ bool RpnCalculator::setPi() {
 
   stack_[0] = kPi;
   finishEntry();
+  stackLiftEnabled_ = true;
   return true;
 }
 
@@ -255,6 +262,7 @@ bool RpnCalculator::swapXY() {
   const CalculatorValue x = stack_[0];
   stack_[0] = stack_[1];
   stack_[1] = x;
+  stackLiftEnabled_ = true;
   return true;
 }
 
@@ -269,6 +277,7 @@ bool RpnCalculator::rollDown() {
   stack_[1] = stack_[2];
   stack_[2] = stack_[3];
   stack_[3] = x;
+  stackLiftEnabled_ = true;
   return true;
 }
 
@@ -276,6 +285,7 @@ bool RpnCalculator::clearX() {
   stack_[0] = 0.0;
   finishEntry();
   clearError();
+  stackLiftEnabled_ = false;
   return true;
 }
 
@@ -318,15 +328,21 @@ bool RpnCalculator::performBinaryOperation(CalculatorAction action) {
 
   stack_[0] = result;
   dropStack();
+  stackLiftEnabled_ = true;
   return true;
 }
 
 void RpnCalculator::startEntry() {
+  if (stackLiftEnabled_) {
+    liftStack();
+  }
+
   stack_[0] = 0.0;
   entering_ = true;
   decimalMode_ = false;
   decimalScale_ = 0.1;
   enteringExponent_ = false;
+  stackLiftEnabled_ = false;
   exponentMantissa_ = 0.0;
   exponentValue_ = 0;
   exponentSign_ = 1;

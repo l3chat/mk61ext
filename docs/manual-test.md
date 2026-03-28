@@ -98,6 +98,19 @@ The calculator core stores stack values as 64-bit floating point numbers. The cu
 25. Press `1`, then `d`, then `s`, then `2`.
 26. Confirm `X` becomes `0.01`.
 
+## Entry Stack-Lift Check
+
+This verifies the calculator now preserves the displayed `X` value when you begin typing a fresh number from display mode.
+
+1. Press `c`.
+2. Press `2`, then `e`, then `3`, then `+`.
+3. Confirm `X` shows `5`.
+4. Press `4`.
+5. Confirm `X` shows `4`.
+6. Confirm `Y` still shows `5`.
+7. Press `e`, then `6`.
+8. Confirm the stack is `X=6`, `Y=4`, `Z=5`.
+
 ## 64-Bit Precision Spot Check
 
 The firmware now fails to build if the toolchain does not provide a real 64-bit `double`, so a successful `pio run` already confirms the compiler-side requirement.

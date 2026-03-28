@@ -93,6 +93,7 @@ private:
   bool entering_ = false;
   bool decimalMode_ = false;
   bool enteringExponent_ = false;
+  bool stackLiftEnabled_ = false;
   CalculatorValue decimalScale_ = 0.1;
   CalculatorValue exponentMantissa_ = 0.0;
   int exponentValue_ = 0;
