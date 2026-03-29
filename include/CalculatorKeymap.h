@@ -5,6 +5,12 @@
 
 #include "RpnCalculator.h"
 
+enum class CalculatorPrefix : uint8_t {
+  None,
+  F,
+  K,
+};
+
 struct CalculatorKeyAssignment {
   char key;
   const char *primary;
@@ -13,6 +19,9 @@ struct CalculatorKeyAssignment {
 };
 
 CalculatorAction translateKeyToCalculatorAction(char keyPressed);
+void resetCalculatorKeymapState();
+CalculatorPrefix activeCalculatorPrefix();
+const char *activeCalculatorPrefixName();
 const char *calculatorLegend(uint8_t page);
 uint8_t calculatorLegendPageCount();
 

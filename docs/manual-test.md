@@ -57,58 +57,72 @@ The current provisional MK-61-inspired run-mode subset is:
 - digits: `0`-`9`
 - decimal point: `.`
 - operations: `+`, `-`, `*`, `/`
-- `e`: `ENTER`
-- `d`: `EEX`
-- `s`: `CHS` (change sign)
+- `v`: `ENTER`
+- `y`: `EEX`
+- `x`: `CHS` (change sign)
 - `u`: `x↔y`
-- `v`: `R↓` (stack roll-down)
-- `x`: `CX`
-- `q`: square root
-- `r`: reciprocal (`1/x`)
-- `p`: `pi`
+- `z`: `CX`
+- `s`, then `.`: `R↓` (stack roll-down)
+- `s`, then `-`: square root
+- `s`, then `/`: reciprocal (`1/x`)
+- `s`, then `+`: `pi`
+- `t`: `K` prefix key, currently surfaced in the UI but not yet attached to active calculator functions
 - `c`: clear all
 - `a` / `b`: backlight brighter / dimmer
 
 The calculator core stores stack values as 64-bit floating point numbers. The current screen now tries to show up to 15 significant digits while still fitting each value into the 128x64 stack layout.
 
-1. Press `2`, then `e`, then `3`, then `+`.
+1. Press `2`, then `v`, then `3`, then `+`.
 2. Confirm the `X` register shows `5`.
-3. Press `9`, then `e`, then `4`, then `/`.
+3. Press `9`, then `v`, then `4`, then `/`.
 4. Confirm the `X` register shows `2.25`.
-5. Press `s`.
+5. Press `x`.
 6. Confirm the `X` register changes sign.
-7. Press `x`.
+7. Press `z`.
 8. Confirm `X` resets to `0`.
 9. Press `c`.
 10. Confirm `X`, `Y`, `Z`, and `T` all reset to `0`.
-11. Press `8`, then `e`, then `2`, then `u`.
+11. Press `8`, then `v`, then `2`, then `u`.
 12. Confirm `X` and `Y` swap values.
-13. Press `3`, then `e`, then `4`, then `e`, then `5`.
+13. Press `3`, then `v`, then `4`, then `v`, then `5`.
 14. Confirm the stack is `X=5`, `Y=4`, `Z=3`.
-15. Press `v`.
+15. Press `s`, then `.`.
 16. Confirm the stack rolls down to `X=4`, `Y=3`, `Z=0`, `T=5`.
-17. Press `9`, then `q`.
+17. Press `9`, then `s`, then `-`.
 18. Confirm `X` becomes `3`.
-19. Press `4`, then `r`.
+19. Press `4`, then `s`, then `/`.
 20. Confirm `X` becomes `0.25`.
-21. Press `p`.
+21. Press `s`, then `+`.
 22. Confirm `X` becomes approximately `3.14159265358979`.
-23. Press `1`, then `d`, then `3`.
+23. Press `1`, then `y`, then `3`.
 24. Confirm `X` becomes `1000`.
-25. Press `1`, then `d`, then `s`, then `2`.
+25. Press `1`, then `y`, then `x`, then `2`.
 26. Confirm `X` becomes `0.01`.
+
+## Prefix State Check
+
+This verifies the new one-shot `F`/`K` prefix handling and the status-bar feedback.
+
+1. Press `s`.
+2. Confirm the left side of the top status bar shows `MK61 F RUN`.
+3. Press `.`.
+4. Confirm the prefix is consumed and the status bar returns to plain `MK61 RUN`.
+5. Press `t`.
+6. Confirm the left side of the top status bar shows `MK61 K RUN`.
+7. Press `7`.
+8. Confirm the prefix is consumed and the status bar returns to plain `MK61 RUN`.
 
 ## Entry Stack-Lift Check
 
 This verifies the calculator now preserves the displayed `X` value when you begin typing a fresh number from display mode.
 
 1. Press `c`.
-2. Press `2`, then `e`, then `3`, then `+`.
+2. Press `2`, then `v`, then `3`, then `+`.
 3. Confirm `X` shows `5`.
 4. Press `4`.
 5. Confirm `X` shows `4`.
 6. Confirm `Y` still shows `5`.
-7. Press `e`, then `6`.
+7. Press `v`, then `6`.
 8. Confirm the stack is `X=6`, `Y=4`, `Z=5`.
 
 ## 64-Bit Precision Spot Check
@@ -118,9 +132,9 @@ The firmware now fails to build if the toolchain does not provide a real 64-bit 
 This extra keypad test is still useful on hardware because it checks that the calculator path is really preserving that precision end-to-end:
 
 1. Press `c`.
-2. Press `1`, then `d`, then `8`.
+2. Press `1`, then `y`, then `8`.
 3. Confirm `X` shows `1e+08`.
-4. Press `e`, then `1`, then `+`.
+4. Press `v`, then `1`, then `+`.
 5. Confirm `X` shows `100000001`.
 
 If `X` stays at `100000000` instead, the calculator is behaving like a 32-bit float path somewhere.
@@ -147,5 +161,6 @@ This verifies the recent keypad timing fix.
   - row 7: `0 . x y z`
 - This is still a prototype keypad layout over the custom 8x5 matrix, but it now follows a more deliberate MK-61-inspired run-mode subset.
 - The longer-term full assignment draft, including intended `F`- and `K`-shifted layers, is tracked in `docs/key-assignments.md`.
-- The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
+- The active runtime subset now uses the bottom six rows of the matrix for calculator keys and begins to follow the planned MK-61 prefix model with `s` = `F` and `t` = `K`.
+- The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left, optionally prefixed by `F` or `K` when a one-shot prefix is armed, and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
 - The stack area now uses four uniform text rows without frames or separator lines.

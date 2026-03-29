@@ -181,8 +181,10 @@ void decreaseBrightness() {
 
 void handlePressedKey(char keyPressed) {
   if (keyPressed == 'a') {
+    resetCalculatorKeymapState();
     increaseBrightness();
   } else if (keyPressed == 'b') {
+    resetCalculatorKeymapState();
     decreaseBrightness();
   } else {
     calculator.apply(translateKeyToCalculatorAction(keyPressed));
@@ -326,7 +328,12 @@ void drawStatusBar() {
     snprintf(leftBuffer, sizeof(leftBuffer), "ERR %s", calculator.errorMessage());
     rightBuffer[0] = '\0';
   } else {
-    snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s", calculatorModeName());
+    const char *prefixName = activeCalculatorPrefixName();
+    if (prefixName[0] != '\0') {
+      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s %s", prefixName, calculatorModeName());
+    } else {
+      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s", calculatorModeName());
+    }
     formatEventLabel(rightBuffer, sizeof(rightBuffer));
   }
 

@@ -45,6 +45,8 @@ constexpr CalculatorKeyAssignment kPlannedAssignments[] = {
     {'z', "CX", "CF", "NOT"},
 };
 
+CalculatorPrefix gActivePrefix = CalculatorPrefix::None;
+
 CalculatorAction digitToAction(char keyPressed) {
   switch (keyPressed) {
     case '0':
@@ -72,9 +74,7 @@ CalculatorAction digitToAction(char keyPressed) {
   }
 }
 
-}  // namespace
-
-CalculatorAction translateKeyToCalculatorAction(char keyPressed) {
+CalculatorAction primaryActionForKey(char keyPressed) {
   const CalculatorAction digitAction = digitToAction(keyPressed);
   if (digitAction != CalculatorAction::None) {
     return digitAction;
@@ -91,46 +91,138 @@ CalculatorAction translateKeyToCalculatorAction(char keyPressed) {
       return CalculatorAction::Multiply;
     case '/':
       return CalculatorAction::Divide;
-    case 'e':
+    case 'v':
       return CalculatorAction::Enter;
-    case 'd':
+    case 'y':
       return CalculatorAction::EnterExponent;
-    case 's':
-      return CalculatorAction::ChangeSign;
-    case 'q':
-      return CalculatorAction::SquareRoot;
-    case 'r':
-      return CalculatorAction::Reciprocal;
-    case 'p':
-      return CalculatorAction::Pi;
     case 'x':
+      return CalculatorAction::ChangeSign;
+    case 'u':
+      return CalculatorAction::SwapXY;
+    case 'z':
       return CalculatorAction::ClearX;
     case 'c':
       return CalculatorAction::ClearAll;
-    case 'u':
-      return CalculatorAction::SwapXY;
-    case 'v':
-      return CalculatorAction::RollDown;
     default:
       return CalculatorAction::None;
   }
 }
 
+CalculatorAction shiftedActionForKey(CalculatorPrefix prefix, char keyPressed) {
+  switch (prefix) {
+    case CalculatorPrefix::F:
+      switch (keyPressed) {
+        case '.':
+          return CalculatorAction::RollDown;
+        case '-':
+          return CalculatorAction::SquareRoot;
+        case '/':
+          return CalculatorAction::Reciprocal;
+        case '+':
+          return CalculatorAction::Pi;
+        default:
+          return CalculatorAction::None;
+      }
+    case CalculatorPrefix::K:
+      return CalculatorAction::None;
+    case CalculatorPrefix::None:
+      return CalculatorAction::None;
+  }
+
+  return CalculatorAction::None;
+}
+
+const char *shiftedAssignmentLabel(const CalculatorKeyAssignment *assignment, CalculatorPrefix prefix) {
+  if (assignment == nullptr) {
+    return "";
+  }
+
+  switch (prefix) {
+    case CalculatorPrefix::F:
+      return assignment->fShifted;
+    case CalculatorPrefix::K:
+      return assignment->kShifted;
+    case CalculatorPrefix::None:
+      return "";
+  }
+
+  return "";
+}
+
+bool hasPlannedShiftedAssignment(char keyPressed, CalculatorPrefix prefix) {
+  const CalculatorKeyAssignment *assignment = plannedCalculatorKeyAssignment(keyPressed);
+  const char *label = shiftedAssignmentLabel(assignment, prefix);
+  return (label != nullptr) && (label[0] != '\0');
+}
+
+}  // namespace
+
+CalculatorAction translateKeyToCalculatorAction(char keyPressed) {
+  if (keyPressed == 's') {
+    gActivePrefix = CalculatorPrefix::F;
+    return CalculatorAction::None;
+  }
+
+  if (keyPressed == 't') {
+    gActivePrefix = CalculatorPrefix::K;
+    return CalculatorAction::None;
+  }
+
+  if (gActivePrefix != CalculatorPrefix::None) {
+    const CalculatorPrefix prefix = gActivePrefix;
+    gActivePrefix = CalculatorPrefix::None;
+
+    const CalculatorAction shiftedAction = shiftedActionForKey(prefix, keyPressed);
+    if (shiftedAction != CalculatorAction::None) {
+      return shiftedAction;
+    }
+
+    if (hasPlannedShiftedAssignment(keyPressed, prefix)) {
+      return CalculatorAction::None;
+    }
+  }
+
+  return primaryActionForKey(keyPressed);
+}
+
+void resetCalculatorKeymapState() {
+  gActivePrefix = CalculatorPrefix::None;
+}
+
+CalculatorPrefix activeCalculatorPrefix() {
+  return gActivePrefix;
+}
+
+const char *activeCalculatorPrefixName() {
+  switch (gActivePrefix) {
+    case CalculatorPrefix::F:
+      return "F";
+    case CalculatorPrefix::K:
+      return "K";
+    case CalculatorPrefix::None:
+      return "";
+  }
+
+  return "";
+}
+
 const char *calculatorLegend(uint8_t page) {
   switch (page) {
     case 0:
-      return "eEnt dEex uXy vRdn";
+      return "vEnt yEex xChs zCx";
     case 1:
-      return "sChs xCx qSrt r1/x";
+      return "uXy sF tK s.Srdn";
     case 2:
-      return "pPi cClr a+/b-";
+      return "s-Srt s/1/x s+Pi";
+    case 3:
+      return "cClr a+/b-";
     default:
       return "";
   }
 }
 
 uint8_t calculatorLegendPageCount() {
-  return 3;
+  return 4;
 }
 
 const CalculatorKeyAssignment *plannedCalculatorKeyAssignments() {
