@@ -66,11 +66,25 @@ The current provisional MK-61-inspired run-mode subset is:
 - `s`, then `-`: square root
 - `s`, then `/`: reciprocal (`1/x`)
 - `s`, then `+`: `pi`
-- `t`: `K` prefix key, currently surfaced in the UI but not yet attached to active calculator functions
+- `s`, then `*`: `x^2`
+- `s`, then `0`: `10^x`
+- `s`, then `1`: `e^x`
+- `s`, then `2`: `lg`
+- `s`, then `3`: `ln`
+- `s`, then `7` / `8` / `9`: `sin` / `cos` / `tan`
+- `s`, then `4` / `5` / `6`: `asin` / `acos` / `atan`
+- `s`, then `u`: `x^y` (implemented as `X^Y`, matching the MK-61 notation)
+- `s`, then `v`: `LAST X`
+- `t`, then `7`: `INT`
+- `t`, then `8`: `FRAC`
+- `t`, then `9`: `max`
+- `t`, then `4`: `|x|`
+- `t`, then `5`: `sign`
 - `c`: clear all
 - `a` / `b`: backlight brighter / dimmer
 
 The calculator core stores stack values as 64-bit floating point numbers. The current screen now tries to show up to 15 significant digits while still fitting each value into the 128x64 stack layout.
+Trigonometric functions currently use radians until an angle-mode feature exists.
 
 1. Press `2`, then `v`, then `3`, then `+`.
 2. Confirm the `X` register shows `5`.
@@ -109,8 +123,41 @@ This verifies the new one-shot `F`/`K` prefix handling and the status-bar feedba
 4. Confirm the prefix is consumed and the status bar returns to plain `MK61 RUN`.
 5. Press `t`.
 6. Confirm the left side of the top status bar shows `MK61 K RUN`.
-7. Press `7`.
+7. Press `4`.
 8. Confirm the prefix is consumed and the status bar returns to plain `MK61 RUN`.
+
+## Extended Operation Check
+
+This verifies the newly implemented scientific and utility operations.
+
+1. Press `c`, then `0`, then `s`, then `7`.
+2. Confirm `X` stays `0` (`sin(0) = 0`).
+3. Press `c`, then `0`, then `s`, then `8`.
+4. Confirm `X` becomes `1` (`cos(0) = 1`).
+5. Press `c`, then `1`, then `s`, then `1`.
+6. Confirm `X` becomes approximately `2.71828182845905`.
+7. Press `c`, then `2`, then `s`, then `0`.
+8. Confirm `X` becomes `100`.
+9. Press `c`, then `1`, then `0`, then `0`, then `0`, then `s`, then `2`.
+10. Confirm `X` becomes `3`.
+11. Press `c`, then `1`, then `0`, then `s`, then `3`.
+12. Confirm `X` becomes approximately `2.30258509299405`.
+13. Press `c`, then `3`, then `s`, then `*`.
+14. Confirm `X` becomes `9`.
+15. Press `c`, then `2`, then `v`, then `3`, then `s`, then `u`.
+16. Confirm `X` becomes `9` (`X^Y`, so `3^2`).
+17. Press `s`, then `v`.
+18. Confirm `X` returns to `3` from `LAST X`.
+19. Press `c`, then `-`, then `3`, then `t`, then `4`.
+20. Confirm `X` becomes `3`.
+21. Press `c`, then `-`, then `3`, then `t`, then `5`.
+22. Confirm `X` becomes `-1`.
+23. Press `c`, then `1`, then `2`, then `.`, then `7`, then `5`, then `t`, then `7`.
+24. Confirm `X` becomes `12`.
+25. Press `c`, then `1`, then `2`, then `.`, then `7`, then `5`, then `t`, then `8`.
+26. Confirm `X` becomes `0.75`.
+27. Press `c`, then `2`, then `v`, then `5`, then `t`, then `9`.
+28. Confirm `X` becomes `5`.
 
 ## Entry Stack-Lift Check
 
@@ -162,5 +209,7 @@ This verifies the recent keypad timing fix.
 - This is still a prototype keypad layout over the custom 8x5 matrix, but it now follows a more deliberate MK-61-inspired run-mode subset.
 - The longer-term full assignment draft, including intended `F`- and `K`-shifted layers, is tracked in `docs/key-assignments.md`.
 - The active runtime subset now uses the bottom six rows of the matrix for calculator keys and begins to follow the planned MK-61 prefix model with `s` = `F` and `t` = `K`.
+- The currently wired `F`-layer now includes trig, inverse trig, powers, exponentials, logarithms, `LAST X`, and the earlier `R↓`, `sqrt`, `1/x`, and `pi` functions.
+- The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, and `sign`.
 - The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left, optionally prefixed by `F` or `K` when a one-shot prefix is armed, and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
 - The stack area now uses four uniform text rows without frames or separator lines.

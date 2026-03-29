@@ -112,19 +112,58 @@ CalculatorAction shiftedActionForKey(CalculatorPrefix prefix, char keyPressed) {
   switch (prefix) {
     case CalculatorPrefix::F:
       switch (keyPressed) {
+        case '7':
+          return CalculatorAction::Sin;
+        case '8':
+          return CalculatorAction::Cos;
+        case '9':
+          return CalculatorAction::Tan;
         case '.':
           return CalculatorAction::RollDown;
+        case '4':
+          return CalculatorAction::Asin;
+        case '5':
+          return CalculatorAction::Acos;
+        case '6':
+          return CalculatorAction::Atan;
         case '-':
           return CalculatorAction::SquareRoot;
         case '/':
           return CalculatorAction::Reciprocal;
         case '+':
           return CalculatorAction::Pi;
+        case '*':
+          return CalculatorAction::Square;
+        case '1':
+          return CalculatorAction::ExpE;
+        case '2':
+          return CalculatorAction::Log10;
+        case '3':
+          return CalculatorAction::NaturalLog;
+        case 'u':
+          return CalculatorAction::PowerXY;
+        case 'v':
+          return CalculatorAction::LastX;
+        case '0':
+          return CalculatorAction::Exp10;
         default:
           return CalculatorAction::None;
       }
     case CalculatorPrefix::K:
-      return CalculatorAction::None;
+      switch (keyPressed) {
+        case '7':
+          return CalculatorAction::IntegerPart;
+        case '8':
+          return CalculatorAction::FractionalPart;
+        case '9':
+          return CalculatorAction::MaxXY;
+        case '4':
+          return CalculatorAction::AbsoluteValue;
+        case '5':
+          return CalculatorAction::Sign;
+        default:
+          return CalculatorAction::None;
+      }
     case CalculatorPrefix::None:
       return CalculatorAction::None;
   }
@@ -215,14 +254,22 @@ const char *calculatorLegend(uint8_t page) {
     case 2:
       return "s-Srt s/1/x s+Pi";
     case 3:
-      return "cClr a+/b-";
+      return "s*Sq s0 10x svLx";
+    case 4:
+      return "s7/8/9 trig s1/2/3";
+    case 5:
+      return "t7Int t8Frc t9Max";
+    case 6:
+      return "t4Abs t5Sign cClr";
+    case 7:
+      return "a+/b- trig=rad";
     default:
       return "";
   }
 }
 
 uint8_t calculatorLegendPageCount() {
-  return 4;
+  return 8;
 }
 
 const CalculatorKeyAssignment *plannedCalculatorKeyAssignments() {

@@ -33,9 +33,27 @@ enum class CalculatorAction : uint8_t {
   Divide,
   Reciprocal,
   SquareRoot,
+  Square,
+  PowerXY,
+  Exp10,
+  ExpE,
+  Log10,
+  NaturalLog,
+  Sin,
+  Cos,
+  Tan,
+  Asin,
+  Acos,
+  Atan,
   Pi,
+  LastX,
   SwapXY,
   RollDown,
+  IntegerPart,
+  FractionalPart,
+  AbsoluteValue,
+  Sign,
+  MaxXY,
   ClearX,
   ClearAll,
 };
@@ -44,6 +62,7 @@ enum class CalculatorError : uint8_t {
   None,
   DivideByZero,
   NegativeSquareRoot,
+  DomainError,
 };
 
 struct CalculatorStack {
@@ -75,13 +94,32 @@ private:
   bool toggleSign();
   bool reciprocal();
   bool squareRoot();
+  bool square();
+  bool powerXY();
+  bool exp10();
+  bool expE();
+  bool log10Value();
+  bool naturalLog();
+  bool sine();
+  bool cosine();
+  bool tangent();
+  bool arcsine();
+  bool arccosine();
+  bool arctangent();
   bool setPi();
+  bool recallLastX();
   bool swapXY();
   bool rollDown();
+  bool integerPart();
+  bool fractionalPart();
+  bool absoluteValue();
+  bool sign();
+  bool maxXY();
   bool clearX();
   bool clearAll();
   bool performBinaryOperation(CalculatorAction action);
 
+  void rememberLastX();
   void startEntry();
   void finishEntry();
   void clearError();
@@ -96,6 +134,7 @@ private:
   bool stackLiftEnabled_ = false;
   CalculatorValue decimalScale_ = 0.1;
   CalculatorValue exponentMantissa_ = 0.0;
+  CalculatorValue lastX_ = 0.0;
   int exponentValue_ = 0;
   int exponentSign_ = 1;
   CalculatorError error_ = CalculatorError::None;

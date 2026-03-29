@@ -24,6 +24,7 @@ void RpnCalculator::reset() {
   enteringExponent_ = false;
   stackLiftEnabled_ = false;
   exponentMantissa_ = 0.0;
+  lastX_ = 0.0;
   exponentValue_ = 0;
   exponentSign_ = 1;
   error_ = CalculatorError::None;
@@ -70,12 +71,48 @@ bool RpnCalculator::apply(CalculatorAction action) {
       return reciprocal();
     case CalculatorAction::SquareRoot:
       return squareRoot();
+    case CalculatorAction::Square:
+      return square();
+    case CalculatorAction::PowerXY:
+      return powerXY();
+    case CalculatorAction::Exp10:
+      return exp10();
+    case CalculatorAction::ExpE:
+      return expE();
+    case CalculatorAction::Log10:
+      return log10Value();
+    case CalculatorAction::NaturalLog:
+      return naturalLog();
+    case CalculatorAction::Sin:
+      return sine();
+    case CalculatorAction::Cos:
+      return cosine();
+    case CalculatorAction::Tan:
+      return tangent();
+    case CalculatorAction::Asin:
+      return arcsine();
+    case CalculatorAction::Acos:
+      return arccosine();
+    case CalculatorAction::Atan:
+      return arctangent();
     case CalculatorAction::Pi:
       return setPi();
+    case CalculatorAction::LastX:
+      return recallLastX();
     case CalculatorAction::SwapXY:
       return swapXY();
     case CalculatorAction::RollDown:
       return rollDown();
+    case CalculatorAction::IntegerPart:
+      return integerPart();
+    case CalculatorAction::FractionalPart:
+      return fractionalPart();
+    case CalculatorAction::AbsoluteValue:
+      return absoluteValue();
+    case CalculatorAction::Sign:
+      return sign();
+    case CalculatorAction::MaxXY:
+      return maxXY();
     case CalculatorAction::ClearX:
       return clearX();
     case CalculatorAction::ClearAll:
@@ -102,6 +139,8 @@ const char *RpnCalculator::errorMessage() const {
       return "divide by zero";
     case CalculatorError::NegativeSquareRoot:
       return "negative sqrt";
+    case CalculatorError::DomainError:
+      return "domain error";
   }
 
   return "unknown error";
@@ -196,6 +235,8 @@ bool RpnCalculator::toggleSign() {
     clearX();
   }
 
+  rememberLastX();
+
   if (enteringExponent_) {
     exponentSign_ = -exponentSign_;
     updateExponentValue();
@@ -213,6 +254,7 @@ bool RpnCalculator::reciprocal() {
   }
 
   finishEntry();
+  rememberLastX();
 
   if (stack_[0] == 0.0) {
     error_ = CalculatorError::DivideByZero;
@@ -230,6 +272,7 @@ bool RpnCalculator::squareRoot() {
   }
 
   finishEntry();
+  rememberLastX();
 
   if (stack_[0] < 0.0) {
     error_ = CalculatorError::NegativeSquareRoot;
@@ -241,12 +284,224 @@ bool RpnCalculator::squareRoot() {
   return true;
 }
 
+bool RpnCalculator::square() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] *= stack_[0];
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::powerXY() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  const CalculatorValue x = stack_[0];
+  const CalculatorValue y = stack_[1];
+  const CalculatorValue result = std::pow(x, y);
+
+  if (std::isnan(result) || !std::isfinite(result)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = result;
+  dropStack();
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::exp10() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  const CalculatorValue result = std::pow(10.0, stack_[0]);
+  if (!std::isfinite(result)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = result;
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::expE() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  const CalculatorValue result = std::exp(stack_[0]);
+  if (!std::isfinite(result)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = result;
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::log10Value() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  if (stack_[0] <= 0.0) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = std::log10(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::naturalLog() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  if (stack_[0] <= 0.0) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = std::log(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::sine() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = std::sin(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::cosine() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = std::cos(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::tangent() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  const CalculatorValue result = std::tan(stack_[0]);
+  if (!std::isfinite(result)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = result;
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::arcsine() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  if ((stack_[0] < -1.0) || (stack_[0] > 1.0)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = std::asin(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::arccosine() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  if ((stack_[0] < -1.0) || (stack_[0] > 1.0)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = std::acos(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::arctangent() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = std::atan(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
 bool RpnCalculator::setPi() {
   if (hasError()) {
     clearX();
   }
 
+  rememberLastX();
   stack_[0] = kPi;
+  finishEntry();
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::recallLastX() {
+  if (hasError()) {
+    clearX();
+  }
+
+  stack_[0] = lastX_;
   finishEntry();
   stackLiftEnabled_ = true;
   return true;
@@ -258,6 +513,7 @@ bool RpnCalculator::swapXY() {
   }
 
   finishEntry();
+  rememberLastX();
 
   const CalculatorValue x = stack_[0];
   stack_[0] = stack_[1];
@@ -272,6 +528,7 @@ bool RpnCalculator::rollDown() {
   }
 
   finishEntry();
+  rememberLastX();
   const CalculatorValue x = stack_[0];
   stack_[0] = stack_[1];
   stack_[1] = stack_[2];
@@ -281,7 +538,76 @@ bool RpnCalculator::rollDown() {
   return true;
 }
 
+bool RpnCalculator::integerPart() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = std::trunc(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::fractionalPart() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = stack_[0] - std::trunc(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::absoluteValue() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = std::fabs(stack_[0]);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::sign() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  if (stack_[0] > 0.0) {
+    stack_[0] = 1.0;
+  } else if (stack_[0] < 0.0) {
+    stack_[0] = -1.0;
+  } else {
+    stack_[0] = 0.0;
+  }
+
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::maxXY() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = (stack_[0] > stack_[1]) ? stack_[0] : stack_[1];
+  stackLiftEnabled_ = true;
+  return true;
+}
+
 bool RpnCalculator::clearX() {
+  rememberLastX();
   stack_[0] = 0.0;
   finishEntry();
   clearError();
@@ -300,6 +626,7 @@ bool RpnCalculator::performBinaryOperation(CalculatorAction action) {
   }
 
   finishEntry();
+  rememberLastX();
 
   const CalculatorValue x = stack_[0];
   const CalculatorValue y = stack_[1];
@@ -330,6 +657,10 @@ bool RpnCalculator::performBinaryOperation(CalculatorAction action) {
   dropStack();
   stackLiftEnabled_ = true;
   return true;
+}
+
+void RpnCalculator::rememberLastX() {
+  lastX_ = stack_[0];
 }
 
 void RpnCalculator::startEntry() {
