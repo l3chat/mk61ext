@@ -35,6 +35,8 @@ pio run -t upload --upload-port /dev/ttyACM0
 
 See [docs/manual-test.md](docs/manual-test.md) for the current hardware bring-up checklist and keypad diagnostics expectations.
 
+See [docs/key-assignments.md](docs/key-assignments.md) for the longer-term key-assignment plan, including the intended `F`- and `K`-shifted layers.
+
 ## EEPROM
 
 The firmware expects an AT24C256C-compatible EEPROM on Pico `GPIO 14`/`GPIO 15` at I2C address `0x50`. The exact pin wiring is documented in [docs/manual-test.md](docs/manual-test.md).

@@ -2,6 +2,49 @@
 
 namespace {
 
+constexpr CalculatorKeyAssignment kPlannedAssignments[] = {
+    {'a', "EXT1", "", ""},
+    {'b', "EXT2", "", ""},
+    {'c', "EXT3", "", ""},
+    {'d', "EXT4", "", ""},
+    {'e', "EXT5", "", ""},
+    {'f', "EXT6", "", ""},
+    {'g', "EXT7", "", ""},
+    {'h', "EXT8", "", ""},
+    {'i', "EXT9", "", ""},
+    {'j', "EXT10", "", ""},
+    {'k', "SST", "JP X<0", "JPI X<0"},
+    {'l', "BST", "JP X=0", "JPI X=0"},
+    {'m', "RTN/0", "JP X>=0", "JPI X>=0"},
+    {'n', "R/S", "JP X<>0", "JPI X<>0"},
+    {'o', "RCL", "DSNZ0", "RCLI"},
+    {'p', "STO", "DSNZ1", "STOI"},
+    {'q', "GTO", "DSNZ2", "JPI"},
+    {'r', "GSB/SST", "DSNZ3", "GSBI"},
+    {'s', "F", "", ""},
+    {'t', "K", "", ""},
+    {'7', "7", "sin", "INT"},
+    {'8', "8", "cos", "FRAC"},
+    {'9', "9", "tg", "max"},
+    {'-', "-", "sqrt", ""},
+    {'/', "/", "1/x", ""},
+    {'4', "4", "asin", "|x|"},
+    {'5', "5", "acos", "sign"},
+    {'6', "6", "atan", "H->H.M"},
+    {'+', "+", "pi", "H.M->H"},
+    {'*', "*", "x^2", ""},
+    {'1', "1", "e^x", ""},
+    {'2', "2", "lg", ""},
+    {'3', "3", "ln", "H->H.M.S"},
+    {'u', "x<->y", "x^y", "H.M.S->H"},
+    {'v', "ENTER", "LAST X", "RND"},
+    {'0', "0", "10^x", "NOP"},
+    {'.', ".", "Rdown", "AND"},
+    {'x', "CHS", "RUN", "OR"},
+    {'y', "EEX", "PRG", "XOR"},
+    {'z', "CX", "CF", "NOT"},
+};
+
 CalculatorAction digitToAction(char keyPressed) {
   switch (keyPressed) {
     case '0':
@@ -88,4 +131,22 @@ const char *calculatorLegend(uint8_t page) {
 
 uint8_t calculatorLegendPageCount() {
   return 3;
+}
+
+const CalculatorKeyAssignment *plannedCalculatorKeyAssignments() {
+  return kPlannedAssignments;
+}
+
+size_t plannedCalculatorKeyAssignmentCount() {
+  return sizeof(kPlannedAssignments) / sizeof(kPlannedAssignments[0]);
+}
+
+const CalculatorKeyAssignment *plannedCalculatorKeyAssignment(char keyPressed) {
+  for (const CalculatorKeyAssignment &assignment : kPlannedAssignments) {
+    if (assignment.key == keyPressed) {
+      return &assignment;
+    }
+  }
+
+  return nullptr;
 }

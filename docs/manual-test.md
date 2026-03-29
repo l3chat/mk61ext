@@ -146,5 +146,6 @@ This verifies the recent keypad timing fix.
   - row 6: `1 2 3 u v`
   - row 7: `0 . x y z`
 - This is still a prototype keypad layout over the custom 8x5 matrix, but it now follows a more deliberate MK-61-inspired run-mode subset.
+- The longer-term full assignment draft, including intended `F`- and `K`-shifted layers, is tracked in `docs/key-assignments.md`.
 - The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
 - The stack area now uses four uniform text rows without frames or separator lines.
