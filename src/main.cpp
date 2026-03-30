@@ -133,10 +133,10 @@ constexpr int kStackRowHeight = 14;
 constexpr int kStackValueMaxPrecision = 15;
 constexpr int kStackValueMinGap = 4;
 constexpr int kHelpTitleY = 10;
-constexpr int kHelpBodyY = 21;
-constexpr int kHelpLineHeight = 8;
-constexpr uint8_t kHelpBodyLineCount = 5;
-constexpr size_t kHelpWrapChars = 24;
+constexpr int kHelpBodyY = 18;
+constexpr int kHelpLineHeight = 7;
+constexpr uint8_t kHelpBodyLineCount = 6;
+constexpr int kHelpTextWidth = 126;
 
 struct KeypadDiagnostics {
   char lastKey = NO_KEY;
@@ -177,6 +177,17 @@ void applyBrightness() {
   }
 }
 
+void increaseBrightness() {
+  brightness *= 2;
+  if (brightness > 256) {
+    brightness = 256;
+  }
+  if (brightness == 0) {
+    brightness = 1;
+  }
+  applyBrightness();
+}
+
 void decreaseBrightness() {
   brightness /= 2;
   applyBrightness();
@@ -205,7 +216,7 @@ void rememberHelpSelection(char keyPressed, CalculatorPrefix prefix) {
 }
 
 void handleHelpPressedKey(char keyPressed) {
-  if ((keyPressed == 'b') || (keyPressed == 'c')) {
+  if ((keyPressed == 'a') || (keyPressed == 'b') || (keyPressed == 'c')) {
     resetCalculatorKeymapState();
     rememberHelpSelection(keyPressed, CalculatorPrefix::None);
     return;
@@ -218,13 +229,19 @@ void handleHelpPressedKey(char keyPressed) {
 }
 
 void handlePressedKey(char keyPressed) {
-  if (keyPressed == 'a') {
+  if (keyPressed == 'e') {
     toggleHelpMode();
     return;
   }
 
   if (helpState.enabled) {
     handleHelpPressedKey(keyPressed);
+    return;
+  }
+
+  if (keyPressed == 'a') {
+    resetCalculatorKeymapState();
+    increaseBrightness();
     return;
   }
 
@@ -401,7 +418,7 @@ void drawStatusBar() {
   display.setDrawColor(1);
 }
 
-void drawWrappedText(int x, int y, const char *text, size_t maxCharsPerLine, uint8_t maxLines) {
+void drawWrappedText(int x, int y, const char *text, int maxPixelWidth, uint8_t maxLines) {
   char lineBuffer[64];
   size_t position = 0;
 
@@ -417,17 +434,26 @@ void drawWrappedText(int x, int y, const char *text, size_t maxCharsPerLine, uin
     const size_t lineStart = position;
     size_t lineEnd = lineStart;
     size_t lastSpace = static_cast<size_t>(-1);
-    size_t count = 0;
+    size_t lastFittingEnd = lineStart;
 
     while ((text[position] != '\0') && (text[position] != '\n')) {
-      if (count == maxCharsPerLine) {
-        break;
-      }
       if (text[position] == ' ') {
         lastSpace = position;
       }
+
+      const size_t nextLength = (position - lineStart) + 1;
+      if (nextLength >= sizeof(lineBuffer)) {
+        break;
+      }
+
+      std::memcpy(lineBuffer, text + lineStart, nextLength);
+      lineBuffer[nextLength] = '\0';
+      if (display.getStrWidth(lineBuffer) > maxPixelWidth) {
+        break;
+      }
+
+      lastFittingEnd = position + 1;
       ++position;
-      ++count;
     }
 
     if (text[position] == '\n') {
@@ -435,11 +461,15 @@ void drawWrappedText(int x, int y, const char *text, size_t maxCharsPerLine, uin
       ++position;
     } else if (text[position] == '\0') {
       lineEnd = position;
-    } else if ((count == maxCharsPerLine) && (lastSpace != static_cast<size_t>(-1)) && (lastSpace >= lineStart)) {
+    } else if ((lastSpace != static_cast<size_t>(-1)) && (lastSpace >= lineStart) && (lastSpace < lastFittingEnd)) {
       lineEnd = lastSpace;
       position = lastSpace + 1;
+    } else if (lastFittingEnd > lineStart) {
+      lineEnd = lastFittingEnd;
+      position = lastFittingEnd;
     } else {
-      lineEnd = position;
+      lineEnd = position + 1;
+      ++position;
     }
 
     size_t lineLength = lineEnd - lineStart;
@@ -473,7 +503,7 @@ void formatHelpTitle(char *buffer, size_t bufferSize) {
 
 const char *currentHelpDescription() {
   if (!helpState.hasSelection) {
-    return "Press any key to see what it does. Press k or p before another key to inspect F or K shifted meanings. Press a again to exit help.";
+    return "Press any key to see its meaning. Use k or p first to inspect F or K shifts. Press e again to leave help.";
   }
 
   return calculatorKeyHelpDescription(helpState.key, helpState.prefix);
@@ -485,11 +515,11 @@ void drawHelpScreen() {
   drawStatusBar();
   formatHelpTitle(titleBuffer, sizeof(titleBuffer));
 
-  display.setFont(u8g2_font_6x10_mr);
+  display.setFont(u8g2_font_5x7_mr);
   display.drawStr(0, kHelpTitleY, titleBuffer);
 
   display.setFont(u8g2_font_5x7_mr);
-  drawWrappedText(0, kHelpBodyY, currentHelpDescription(), kHelpWrapChars, kHelpBodyLineCount);
+  drawWrappedText(0, kHelpBodyY, currentHelpDescription(), kHelpTextWidth, kHelpBodyLineCount);
 }
 
 void drawCalculatorScreen() {

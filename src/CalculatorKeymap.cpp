@@ -57,7 +57,7 @@ bool labelEquals(const char *label, const char *expected) {
 
 const char *helpLabelForKey(char keyPressed, CalculatorPrefix prefix) {
   if (keyPressed == 'a') {
-    return "HELP";
+    return "LIGHT+";
   }
 
   if (keyPressed == 'b') {
@@ -66,6 +66,10 @@ const char *helpLabelForKey(char keyPressed, CalculatorPrefix prefix) {
 
   if (keyPressed == 'c') {
     return "CLR";
+  }
+
+  if (keyPressed == 'e') {
+    return "HELP";
   }
 
   const CalculatorKeyAssignment *assignment = plannedCalculatorKeyAssignment(keyPressed);
@@ -106,11 +110,14 @@ const char *helpDescriptionForLabel(const char *label) {
     return digitDescriptions[label[0] - '0'];
   }
 
-  if (labelEquals(label, "HELP")) {
-    return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting.";
+  if (labelEquals(label, "LIGHT+")) {
+    return "Brighten the display backlight by one step.";
   }
   if (labelEquals(label, "LIGHT-")) {
     return "Dim the display backlight by one step.";
+  }
+  if (labelEquals(label, "HELP")) {
+    return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting.";
   }
   if (labelEquals(label, "CLR")) {
     return "Clear all stack registers and the current entry state.";
@@ -582,7 +589,7 @@ const char *calculatorLegend(uint8_t page) {
     case 6:
       return "p4Abs p5Sign cClr";
     case 7:
-      return "aHelp bDim rad";
+      return "a+/b- eHelp";
     default:
       return "";
   }

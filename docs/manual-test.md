@@ -45,14 +45,16 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 
 ## Functional Key Checks
 
-1. Press `a`.
-2. Confirm the status bar changes to `MK61 HELP` and the stack view is replaced by help text.
-3. Press `7`.
-4. Confirm the help text explains digit `7` instead of changing the calculator stack.
-5. Press `a` again.
-6. Confirm the normal calculator screen returns.
-7. Press `b` repeatedly.
-8. Confirm the backlight dims in steps.
+1. Press `b` repeatedly.
+2. Confirm the backlight dims in steps.
+3. Press `a` repeatedly.
+4. Confirm the backlight brightens in steps.
+5. Press `e`.
+6. Confirm the status bar changes to `MK61 HELP` and the stack view is replaced by help text.
+7. Press `7`.
+8. Confirm the help text explains digit `7` instead of changing the calculator stack.
+9. Press `e` again.
+10. Confirm the normal calculator screen returns.
 
 ## Calculator Smoke Test
 
@@ -85,8 +87,9 @@ The current provisional MK-61-inspired run-mode subset is:
 - `p`, then `4`: `|x|`
 - `p`, then `5`: `sign`
 - `c`: clear all
-- `a`: toggle help mode
+- `a`: backlight brighter
 - `b`: backlight dimmer
+- `e`: toggle help mode
 
 The calculator core stores stack values as 64-bit floating point numbers. The current screen now tries to show up to 15 significant digits while still fitting each value into the 128x64 stack layout.
 Trigonometric functions currently use radians until an angle-mode feature exists.
@@ -133,15 +136,15 @@ This verifies the new one-shot `F`/`K` prefix handling and the status-bar feedba
 
 ## Help Mode Check
 
-This verifies that help mode can be entered with `a` and that keys show descriptions instead of acting while it is active.
+This verifies that help mode can be entered with `e` and that keys show descriptions instead of acting while it is active.
 
-1. Press `a`.
+1. Press `e`.
 2. Confirm the left side of the top status bar shows `MK61 HELP`.
 3. Press `k`.
 4. Confirm the left side of the top status bar now shows `MK61 HELP F`.
 5. Press `7`.
 6. Confirm the screen shows help text for `sin` instead of changing the stack.
-7. Press `a`.
+7. Press `e`.
 8. Confirm the normal calculator stack screen returns.
 
 ## Extended Operation Check
@@ -227,7 +230,7 @@ This verifies the recent keypad timing fix.
 - This is still a prototype keypad layout over the custom 8x5 matrix, but it now follows a more deliberate MK-61-inspired run-mode subset.
 - The longer-term full assignment draft, including intended `F`- and `K`-shifted layers, is tracked in `docs/key-assignments.md`.
 - The active runtime subset now uses the bottom six rows of the matrix for calculator keys and begins to follow the planned MK-61 prefix model with `k` = `F` and `p` = `K`.
-- The `a` key now toggles an on-device help mode. While help mode is active, key presses show descriptions instead of performing their normal actions.
+- The `a` and `b` keys now control backlight brighter/dimmer again, and `e` toggles the on-device help mode. While help mode is active, key presses show descriptions instead of performing their normal actions.
 - The currently wired `F`-layer now includes trig, inverse trig, powers, exponentials, logarithms, `LAST X`, and the earlier `R↓`, `sqrt`, `1/x`, and `pi` functions.
 - The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, and `sign`.
 - The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left, optionally prefixed by `F` or `K` when a one-shot prefix is armed, and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
