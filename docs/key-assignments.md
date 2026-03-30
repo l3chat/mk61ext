@@ -49,21 +49,21 @@ This 6x5 block is the planned MK-61-style keyboard:
 
 | Raw key | Primary | What it does | `F`-shifted | What it does | `K`-shifted | What it does |
 | --- | --- | --- | --- | --- | --- | --- |
-| `k` | `SST` | Step forward by one program step while inspecting program memory. | `JP X<0` | Conditional program branch keyed on `X<0`. | `JPI X<0` | Indirect conditional branch using an address/register reference. |
-| `l` | `BST` | Step backward by one program step while inspecting program memory. | `JP X=0` | Conditional program branch keyed on `X=0`. | `JPI X=0` | Indirect conditional branch keyed on `X=0`. |
-| `m` | `RTN/0` | Return from subroutine in program mode, or reset the program counter to `00` in calculator mode. | `JP X>=0` | Conditional branch keyed on `X>=0`. | `JPI X>=0` | Indirect conditional branch keyed on `X>=0`. |
-| `n` | `R/S` | Run or stop a program; in program mode this is the halt command. | `JP X<>0` | Conditional branch keyed on `X<>0`. | `JPI X<>0` | Indirect conditional branch keyed on `X<>0`. |
-| `o` | `RCL` | Recall a register value into `X`. | `DSNZ0` | Decrement register `0` and branch if it stays non-zero. | `RCLI` | Indirect register recall through another register selector. |
+| `k` | `F` | Prefix key that selects the `F` layer for the next keypress. | `—` | No second-level assignment planned here. | `—` | No second-level assignment planned here. |
+| `l` | `SST` | Step forward by one program step while inspecting program memory. | `JP X<0` | Conditional program branch keyed on `X<0`. | `JPI X<0` | Indirect conditional branch using an address/register reference. |
+| `m` | `BST` | Step backward by one program step while inspecting program memory. | `JP X=0` | Conditional program branch keyed on `X=0`. | `JPI X=0` | Indirect conditional branch keyed on `X=0`. |
+| `n` | `RTN/0` | Return from subroutine in program mode, or reset the program counter to `00` in calculator mode. | `JP X>=0` | Conditional branch keyed on `X>=0`. | `JPI X>=0` | Indirect conditional branch keyed on `X>=0`. |
+| `o` | `R/S` | Run or stop a program; in program mode this is the halt command. | `JP X<>0` | Conditional branch keyed on `X<>0`. | `JPI X<>0` | Indirect conditional branch keyed on `X<>0`. |
 
 #### Row `p`-`t`
 
 | Raw key | Primary | What it does | `F`-shifted | What it does | `K`-shifted | What it does |
 | --- | --- | --- | --- | --- | --- | --- |
-| `p` | `STO` | Store `X` into a register. | `DSNZ1` | Decrement register `1` and branch if it stays non-zero. | `STOI` | Indirect register store through another register selector. |
-| `q` | `GTO` | Jump to the following program address. | `DSNZ2` | Decrement register `2` and branch if it stays non-zero. | `JPI` | Indirect jump using an address held in a register. |
-| `r` | `GSB/SST` | In calculator mode, single-step a program; in program mode, call a subroutine. | `DSNZ3` | Decrement register `3` and branch if it stays non-zero. | `GSBI` | Indirect subroutine call using an address held in a register. |
-| `s` | `F` | Prefix key that selects the `F` layer for the next keypress. | `—` | No second-level assignment planned here. | `—` | No second-level assignment planned here. |
-| `t` | `K` | Prefix key that selects the `K` layer for the next keypress. | `—` | No second-level assignment planned here. | `—` | No second-level assignment planned here. |
+| `p` | `K` | Prefix key that selects the `K` layer for the next keypress. | `—` | No second-level assignment planned here. | `—` | No second-level assignment planned here. |
+| `q` | `RCL` | Recall a register value into `X`. | `DSNZ0` | Decrement register `0` and branch if it stays non-zero. | `RCLI` | Indirect register recall through another register selector. |
+| `r` | `STO` | Store `X` into a register. | `DSNZ1` | Decrement register `1` and branch if it stays non-zero. | `STOI` | Indirect register store through another register selector. |
+| `s` | `GTO` | Jump to the following program address. | `DSNZ2` | Decrement register `2` and branch if it stays non-zero. | `JPI` | Indirect jump using an address held in a register. |
+| `t` | `GSB/SST` | In calculator mode, single-step a program; in program mode, call a subroutine. | `DSNZ3` | Decrement register `3` and branch if it stays non-zero. | `GSBI` | Indirect subroutine call using an address held in a register. |
 
 #### Row `7`-`/`
 

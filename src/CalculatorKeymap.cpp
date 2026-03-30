@@ -13,16 +13,16 @@ constexpr CalculatorKeyAssignment kPlannedAssignments[] = {
     {'h', "EXT8", "", ""},
     {'i', "EXT9", "", ""},
     {'j', "EXT10", "", ""},
-    {'k', "SST", "JP X<0", "JPI X<0"},
-    {'l', "BST", "JP X=0", "JPI X=0"},
-    {'m', "RTN/0", "JP X>=0", "JPI X>=0"},
-    {'n', "R/S", "JP X<>0", "JPI X<>0"},
-    {'o', "RCL", "DSNZ0", "RCLI"},
-    {'p', "STO", "DSNZ1", "STOI"},
-    {'q', "GTO", "DSNZ2", "JPI"},
-    {'r', "GSB/SST", "DSNZ3", "GSBI"},
-    {'s', "F", "", ""},
-    {'t', "K", "", ""},
+    {'k', "F", "", ""},
+    {'l', "SST", "JP X<0", "JPI X<0"},
+    {'m', "BST", "JP X=0", "JPI X=0"},
+    {'n', "RTN/0", "JP X>=0", "JPI X>=0"},
+    {'o', "R/S", "JP X<>0", "JPI X<>0"},
+    {'p', "K", "", ""},
+    {'q', "RCL", "DSNZ0", "RCLI"},
+    {'r', "STO", "DSNZ1", "STOI"},
+    {'s', "GTO", "DSNZ2", "JPI"},
+    {'t', "GSB/SST", "DSNZ3", "GSBI"},
     {'7', "7", "sin", "INT"},
     {'8', "8", "cos", "FRAC"},
     {'9', "9", "tg", "max"},
@@ -197,12 +197,12 @@ bool hasPlannedShiftedAssignment(char keyPressed, CalculatorPrefix prefix) {
 }  // namespace
 
 CalculatorAction translateKeyToCalculatorAction(char keyPressed) {
-  if (keyPressed == 's') {
+  if (keyPressed == 'k') {
     gActivePrefix = CalculatorPrefix::F;
     return CalculatorAction::None;
   }
 
-  if (keyPressed == 't') {
+  if (keyPressed == 'p') {
     gActivePrefix = CalculatorPrefix::K;
     return CalculatorAction::None;
   }
@@ -250,17 +250,17 @@ const char *calculatorLegend(uint8_t page) {
     case 0:
       return "vEnt yEex xChs zCx";
     case 1:
-      return "uXy sF tK s.Srdn";
+      return "uXy kF pK k.Srdn";
     case 2:
-      return "s-Srt s/1/x s+Pi";
+      return "k-Srt k/1/x k+Pi";
     case 3:
-      return "s*Sq s0 10x svLx";
+      return "k*Sq k0 10x kvLx";
     case 4:
-      return "s7/8/9 trig s1/2/3";
+      return "k7/8/9 trig k1/2/3";
     case 5:
-      return "t7Int t8Frc t9Max";
+      return "p7Int p8Frc p9Max";
     case 6:
-      return "t4Abs t5Sign cClr";
+      return "p4Abs p5Sign cClr";
     case 7:
       return "a+/b- trig=rad";
     default:
