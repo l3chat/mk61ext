@@ -22,6 +22,8 @@ CalculatorAction translateKeyToCalculatorAction(char keyPressed);
 void resetCalculatorKeymapState();
 CalculatorPrefix activeCalculatorPrefix();
 const char *activeCalculatorPrefixName();
+const char *calculatorKeyHelpLabel(char keyPressed, CalculatorPrefix prefix);
+const char *calculatorKeyHelpDescription(char keyPressed, CalculatorPrefix prefix);
 const char *calculatorLegend(uint8_t page);
 uint8_t calculatorLegendPageCount();
 

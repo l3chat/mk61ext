@@ -86,6 +86,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 #include <SparkFun_External_EEPROM.h>  // http://librarymanager/All#SparkFun_External_EEPROM
 
@@ -131,11 +132,23 @@ constexpr int kStackFirstY = 10;
 constexpr int kStackRowHeight = 14;
 constexpr int kStackValueMaxPrecision = 15;
 constexpr int kStackValueMinGap = 4;
+constexpr int kHelpTitleY = 10;
+constexpr int kHelpBodyY = 21;
+constexpr int kHelpLineHeight = 8;
+constexpr uint8_t kHelpBodyLineCount = 5;
+constexpr size_t kHelpWrapChars = 24;
 
 struct KeypadDiagnostics {
   char lastKey = NO_KEY;
   KeyState lastState = IDLE;
   bool hasEvent = false;
+};
+
+struct HelpState {
+  bool enabled = false;
+  bool hasSelection = false;
+  char key = NO_KEY;
+  CalculatorPrefix prefix = CalculatorPrefix::None;
 };
 
 Keypad keypad(makeKeymap(kKeyMap), kRowPins, kColumnPins, kRowCount, kColumnCount);
@@ -152,6 +165,7 @@ U8G2_ST7565_ERC12864_F_4W_SW_SPI display(
 
 int brightness = 256;
 KeypadDiagnostics keypadDiagnostics;
+HelpState helpState;
 
 void applyBrightness() {
   if (brightness >= 256) {
@@ -163,32 +177,64 @@ void applyBrightness() {
   }
 }
 
-void increaseBrightness() {
-  brightness *= 2;
-  if (brightness > 256) {
-    brightness = 256;
-  }
-  if (brightness == 0) {
-    brightness = 1;
-  }
-  applyBrightness();
-}
-
 void decreaseBrightness() {
   brightness /= 2;
   applyBrightness();
 }
 
+void clearHelpSelection() {
+  helpState.hasSelection = false;
+  helpState.key = NO_KEY;
+  helpState.prefix = CalculatorPrefix::None;
+}
+
+void setHelpMode(bool enabled) {
+  helpState.enabled = enabled;
+  clearHelpSelection();
+  resetCalculatorKeymapState();
+}
+
+void toggleHelpMode() {
+  setHelpMode(!helpState.enabled);
+}
+
+void rememberHelpSelection(char keyPressed, CalculatorPrefix prefix) {
+  helpState.hasSelection = true;
+  helpState.key = keyPressed;
+  helpState.prefix = prefix;
+}
+
+void handleHelpPressedKey(char keyPressed) {
+  if ((keyPressed == 'b') || (keyPressed == 'c')) {
+    resetCalculatorKeymapState();
+    rememberHelpSelection(keyPressed, CalculatorPrefix::None);
+    return;
+  }
+
+  const CalculatorPrefix prefixBefore =
+      ((keyPressed == 'k') || (keyPressed == 'p')) ? CalculatorPrefix::None : activeCalculatorPrefix();
+  (void)translateKeyToCalculatorAction(keyPressed);
+  rememberHelpSelection(keyPressed, prefixBefore);
+}
+
 void handlePressedKey(char keyPressed) {
   if (keyPressed == 'a') {
-    resetCalculatorKeymapState();
-    increaseBrightness();
-  } else if (keyPressed == 'b') {
+    toggleHelpMode();
+    return;
+  }
+
+  if (helpState.enabled) {
+    handleHelpPressedKey(keyPressed);
+    return;
+  }
+
+  if (keyPressed == 'b') {
     resetCalculatorKeymapState();
     decreaseBrightness();
-  } else {
-    calculator.apply(translateKeyToCalculatorAction(keyPressed));
+    return;
   }
+
+  calculator.apply(translateKeyToCalculatorAction(keyPressed));
 }
 
 const char *keyStateName(KeyState state) {
@@ -324,7 +370,15 @@ void drawStatusBar() {
   char leftBuffer[24];
   char rightBuffer[18];
 
-  if (calculator.hasError()) {
+  if (helpState.enabled) {
+    const char *prefixName = activeCalculatorPrefixName();
+    if (prefixName[0] != '\0') {
+      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 HELP %s", prefixName);
+    } else {
+      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 HELP");
+    }
+    formatEventLabel(rightBuffer, sizeof(rightBuffer));
+  } else if (calculator.hasError()) {
     snprintf(leftBuffer, sizeof(leftBuffer), "ERR %s", calculator.errorMessage());
     rightBuffer[0] = '\0';
   } else {
@@ -345,6 +399,97 @@ void drawStatusBar() {
     drawRightAlignedText(kDisplayWidth - 2, 1, rightBuffer);
   }
   display.setDrawColor(1);
+}
+
+void drawWrappedText(int x, int y, const char *text, size_t maxCharsPerLine, uint8_t maxLines) {
+  char lineBuffer[64];
+  size_t position = 0;
+
+  for (uint8_t line = 0; line < maxLines; ++line) {
+    while (text[position] == ' ') {
+      ++position;
+    }
+
+    if (text[position] == '\0') {
+      return;
+    }
+
+    const size_t lineStart = position;
+    size_t lineEnd = lineStart;
+    size_t lastSpace = static_cast<size_t>(-1);
+    size_t count = 0;
+
+    while ((text[position] != '\0') && (text[position] != '\n')) {
+      if (count == maxCharsPerLine) {
+        break;
+      }
+      if (text[position] == ' ') {
+        lastSpace = position;
+      }
+      ++position;
+      ++count;
+    }
+
+    if (text[position] == '\n') {
+      lineEnd = position;
+      ++position;
+    } else if (text[position] == '\0') {
+      lineEnd = position;
+    } else if ((count == maxCharsPerLine) && (lastSpace != static_cast<size_t>(-1)) && (lastSpace >= lineStart)) {
+      lineEnd = lastSpace;
+      position = lastSpace + 1;
+    } else {
+      lineEnd = position;
+    }
+
+    size_t lineLength = lineEnd - lineStart;
+    if (lineLength >= sizeof(lineBuffer)) {
+      lineLength = sizeof(lineBuffer) - 1;
+    }
+
+    std::memcpy(lineBuffer, text + lineStart, lineLength);
+    lineBuffer[lineLength] = '\0';
+    display.drawStr(x, y + (line * kHelpLineHeight), lineBuffer);
+  }
+}
+
+void formatHelpTitle(char *buffer, size_t bufferSize) {
+  if (!helpState.hasSelection) {
+    snprintf(buffer, bufferSize, "Help mode");
+    return;
+  }
+
+  const char *label = calculatorKeyHelpLabel(helpState.key, helpState.prefix);
+  const char *prefixName = (helpState.prefix == CalculatorPrefix::F)
+                               ? "F"
+                               : (helpState.prefix == CalculatorPrefix::K) ? "K" : "";
+
+  if (prefixName[0] != '\0') {
+    snprintf(buffer, bufferSize, "%s %c: %s", prefixName, helpState.key, label);
+  } else {
+    snprintf(buffer, bufferSize, "%c: %s", helpState.key, label);
+  }
+}
+
+const char *currentHelpDescription() {
+  if (!helpState.hasSelection) {
+    return "Press any key to see what it does. Press k or p before another key to inspect F or K shifted meanings. Press a again to exit help.";
+  }
+
+  return calculatorKeyHelpDescription(helpState.key, helpState.prefix);
+}
+
+void drawHelpScreen() {
+  char titleBuffer[32];
+
+  drawStatusBar();
+  formatHelpTitle(titleBuffer, sizeof(titleBuffer));
+
+  display.setFont(u8g2_font_6x10_mr);
+  display.drawStr(0, kHelpTitleY, titleBuffer);
+
+  display.setFont(u8g2_font_5x7_mr);
+  drawWrappedText(0, kHelpBodyY, currentHelpDescription(), kHelpWrapChars, kHelpBodyLineCount);
 }
 
 void drawCalculatorScreen() {
@@ -372,7 +517,11 @@ void setup() {
 void loop() {
   display.clearBuffer();
   updateInput();
-  drawCalculatorScreen();
+  if (helpState.enabled) {
+    drawHelpScreen();
+  } else {
+    drawCalculatorScreen();
+  }
 
   display.sendBuffer();
   delay(kLoopDelayMs);

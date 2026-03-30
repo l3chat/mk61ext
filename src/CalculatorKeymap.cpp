@@ -1,5 +1,7 @@
 #include "CalculatorKeymap.h"
 
+#include <cstring>
+
 namespace {
 
 constexpr CalculatorKeyAssignment kPlannedAssignments[] = {
@@ -46,6 +48,302 @@ constexpr CalculatorKeyAssignment kPlannedAssignments[] = {
 };
 
 CalculatorPrefix gActivePrefix = CalculatorPrefix::None;
+
+const char *shiftedAssignmentLabel(const CalculatorKeyAssignment *assignment, CalculatorPrefix prefix);
+
+bool labelEquals(const char *label, const char *expected) {
+  return std::strcmp(label, expected) == 0;
+}
+
+const char *helpLabelForKey(char keyPressed, CalculatorPrefix prefix) {
+  if (keyPressed == 'a') {
+    return "HELP";
+  }
+
+  if (keyPressed == 'b') {
+    return "LIGHT-";
+  }
+
+  if (keyPressed == 'c') {
+    return "CLR";
+  }
+
+  const CalculatorKeyAssignment *assignment = plannedCalculatorKeyAssignment(keyPressed);
+  if (assignment == nullptr) {
+    return "";
+  }
+
+  if (prefix == CalculatorPrefix::None) {
+    return assignment->primary;
+  }
+
+  const char *label = shiftedAssignmentLabel(assignment, prefix);
+  return (label != nullptr) ? label : "";
+}
+
+const char *helpDescriptionForLabel(const char *label) {
+  if ((label == nullptr) || (label[0] == '\0')) {
+    return "";
+  }
+
+  if (std::strncmp(label, "EXT", 3) == 0) {
+    return "Reserved for a future mk61ext-specific function.";
+  }
+
+  if ((label[0] >= '0') && (label[0] <= '9') && (label[1] == '\0')) {
+    static char digitDescriptions[][16] = {
+        "Enter digit 0.",
+        "Enter digit 1.",
+        "Enter digit 2.",
+        "Enter digit 3.",
+        "Enter digit 4.",
+        "Enter digit 5.",
+        "Enter digit 6.",
+        "Enter digit 7.",
+        "Enter digit 8.",
+        "Enter digit 9.",
+    };
+    return digitDescriptions[label[0] - '0'];
+  }
+
+  if (labelEquals(label, "HELP")) {
+    return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting.";
+  }
+  if (labelEquals(label, "LIGHT-")) {
+    return "Dim the display backlight by one step.";
+  }
+  if (labelEquals(label, "CLR")) {
+    return "Clear all stack registers and the current entry state.";
+  }
+  if (labelEquals(label, "F")) {
+    return "Arm the one-shot F prefix. Press the next key to inspect or use its F-shifted meaning.";
+  }
+  if (labelEquals(label, "K")) {
+    return "Arm the one-shot K prefix. Press the next key to inspect or use its K-shifted meaning.";
+  }
+  if (labelEquals(label, "SST")) {
+    return "Step forward by one program step while inspecting stored code.";
+  }
+  if (labelEquals(label, "BST")) {
+    return "Step backward by one program step while inspecting stored code.";
+  }
+  if (labelEquals(label, "RTN/0")) {
+    return "Return from a subroutine in program mode, or reset the program counter to 00 in run mode.";
+  }
+  if (labelEquals(label, "R/S")) {
+    return "Run or stop a stored program.";
+  }
+  if (labelEquals(label, "RCL")) {
+    return "Recall a register value into X.";
+  }
+  if (labelEquals(label, "STO")) {
+    return "Store X into a register.";
+  }
+  if (labelEquals(label, "GTO")) {
+    return "Jump to the specified program address.";
+  }
+  if (labelEquals(label, "GSB/SST")) {
+    return "Single-step a program in run mode, or call a subroutine in program mode.";
+  }
+  if (labelEquals(label, ".")) {
+    return "Enter the decimal point while typing a number.";
+  }
+  if (labelEquals(label, "+")) {
+    return "Add Y and X.";
+  }
+  if (labelEquals(label, "-")) {
+    return "Subtract X from Y.";
+  }
+  if (labelEquals(label, "*")) {
+    return "Multiply Y and X.";
+  }
+  if (labelEquals(label, "/")) {
+    return "Divide Y by X.";
+  }
+  if (labelEquals(label, "sin")) {
+    return "Take the sine of X. The current firmware uses radians.";
+  }
+  if (labelEquals(label, "cos")) {
+    return "Take the cosine of X. The current firmware uses radians.";
+  }
+  if (labelEquals(label, "tg")) {
+    return "Take the tangent of X. The current firmware uses radians.";
+  }
+  if (labelEquals(label, "sqrt")) {
+    return "Take the square root of X.";
+  }
+  if (labelEquals(label, "1/x")) {
+    return "Replace X with its reciprocal.";
+  }
+  if (labelEquals(label, "asin")) {
+    return "Take the inverse sine of X.";
+  }
+  if (labelEquals(label, "acos")) {
+    return "Take the inverse cosine of X.";
+  }
+  if (labelEquals(label, "atan")) {
+    return "Take the inverse tangent of X.";
+  }
+  if (labelEquals(label, "pi")) {
+    return "Load the constant pi into X.";
+  }
+  if (labelEquals(label, "x^2")) {
+    return "Square X.";
+  }
+  if (labelEquals(label, "e^x")) {
+    return "Raise e to the power of X.";
+  }
+  if (labelEquals(label, "lg")) {
+    return "Take the base-10 logarithm of X.";
+  }
+  if (labelEquals(label, "ln")) {
+    return "Take the natural logarithm of X.";
+  }
+  if (labelEquals(label, "x<->y")) {
+    return "Swap the X and Y registers.";
+  }
+  if (labelEquals(label, "x^y")) {
+    return "Raise one stack operand to the power of the other using the MK-61 stack order.";
+  }
+  if (labelEquals(label, "ENTER")) {
+    return "Push the stack and finish the current numeric entry.";
+  }
+  if (labelEquals(label, "LAST X")) {
+    return "Recall the saved Last X value from the previous operation.";
+  }
+  if (labelEquals(label, "10^x")) {
+    return "Raise 10 to the power of X.";
+  }
+  if (labelEquals(label, "Rdown")) {
+    return "Rotate the four-level stack downward.";
+  }
+  if (labelEquals(label, "CHS")) {
+    return "Change the sign of X or of the exponent entry.";
+  }
+  if (labelEquals(label, "RUN")) {
+    return "Return to normal run mode from programming mode.";
+  }
+  if (labelEquals(label, "EEX")) {
+    return "Start entering the exponent for the current number.";
+  }
+  if (labelEquals(label, "PRG")) {
+    return "Enter programming mode.";
+  }
+  if (labelEquals(label, "CX")) {
+    return "Clear the X register.";
+  }
+  if (labelEquals(label, "CF")) {
+    return "Clear the currently armed prefix state.";
+  }
+  if (labelEquals(label, "INT")) {
+    return "Keep only the integer part of X.";
+  }
+  if (labelEquals(label, "FRAC")) {
+    return "Keep only the fractional part of X.";
+  }
+  if (labelEquals(label, "max")) {
+    return "Replace X with the larger of X and Y without dropping the stack.";
+  }
+  if (labelEquals(label, "|x|")) {
+    return "Replace X with its absolute value.";
+  }
+  if (labelEquals(label, "sign")) {
+    return "Replace X with its sign: -1, 0, or 1.";
+  }
+  if (labelEquals(label, "H->H.M")) {
+    return "Convert decimal hours to hours.minutes.";
+  }
+  if (labelEquals(label, "H.M->H")) {
+    return "Convert hours.minutes back to decimal hours.";
+  }
+  if (labelEquals(label, "H->H.M.S")) {
+    return "Convert decimal hours to hours.minutes.seconds.";
+  }
+  if (labelEquals(label, "H.M.S->H")) {
+    return "Convert hours.minutes.seconds back to decimal hours.";
+  }
+  if (labelEquals(label, "RND")) {
+    return "Generate a random number between 0 and 1.";
+  }
+  if (labelEquals(label, "NOP")) {
+    return "Programming no-operation instruction.";
+  }
+  if (labelEquals(label, "AND")) {
+    return "Planned MK-61 boolean AND operation on bitfield-style values.";
+  }
+  if (labelEquals(label, "OR")) {
+    return "Planned MK-61 boolean OR operation on bitfield-style values.";
+  }
+  if (labelEquals(label, "XOR")) {
+    return "Planned MK-61 boolean XOR operation on bitfield-style values.";
+  }
+  if (labelEquals(label, "NOT")) {
+    return "Planned MK-61 boolean NOT operation on the current bitfield-style value.";
+  }
+  if (labelEquals(label, "JP X<0")) {
+    return "Planned direct conditional jump when X is less than zero.";
+  }
+  if (labelEquals(label, "JP X=0")) {
+    return "Planned direct conditional jump when X equals zero.";
+  }
+  if (labelEquals(label, "JP X>=0")) {
+    return "Planned direct conditional jump when X is zero or positive.";
+  }
+  if (labelEquals(label, "JP X<>0")) {
+    return "Planned direct conditional jump when X is not zero.";
+  }
+  if (labelEquals(label, "JPI X<0")) {
+    return "Planned indirect conditional jump when X is less than zero.";
+  }
+  if (labelEquals(label, "JPI X=0")) {
+    return "Planned indirect conditional jump when X equals zero.";
+  }
+  if (labelEquals(label, "JPI X>=0")) {
+    return "Planned indirect conditional jump when X is zero or positive.";
+  }
+  if (labelEquals(label, "JPI X<>0")) {
+    return "Planned indirect conditional jump when X is not zero.";
+  }
+  if (labelEquals(label, "DSNZ0")) {
+    return "Planned loop control: decrement register 0 and branch while it stays non-zero.";
+  }
+  if (labelEquals(label, "DSNZ1")) {
+    return "Planned loop control: decrement register 1 and branch while it stays non-zero.";
+  }
+  if (labelEquals(label, "DSNZ2")) {
+    return "Planned loop control: decrement register 2 and branch while it stays non-zero.";
+  }
+  if (labelEquals(label, "DSNZ3")) {
+    return "Planned loop control: decrement register 3 and branch while it stays non-zero.";
+  }
+  if (labelEquals(label, "RCLI")) {
+    return "Planned indirect register recall through a register-selected address.";
+  }
+  if (labelEquals(label, "STOI")) {
+    return "Planned indirect register store through a register-selected address.";
+  }
+  if (labelEquals(label, "JPI")) {
+    return "Planned indirect jump using an address held in a register.";
+  }
+  if (labelEquals(label, "GSBI")) {
+    return "Planned indirect subroutine call using an address held in a register.";
+  }
+
+  return "Planned MK-61 key assignment.";
+}
+
+const char *missingShiftDescription(CalculatorPrefix prefix) {
+  switch (prefix) {
+    case CalculatorPrefix::F:
+      return "No F-shifted assignment is planned for this key.";
+    case CalculatorPrefix::K:
+      return "No K-shifted assignment is planned for this key.";
+    case CalculatorPrefix::None:
+      return "No action is currently assigned to this key.";
+  }
+
+  return "No action is currently assigned to this key.";
+}
 
 CalculatorAction digitToAction(char keyPressed) {
   switch (keyPressed) {
@@ -245,6 +543,28 @@ const char *activeCalculatorPrefixName() {
   return "";
 }
 
+const char *calculatorKeyHelpLabel(char keyPressed, CalculatorPrefix prefix) {
+  const char *label = helpLabelForKey(keyPressed, prefix);
+  if (label[0] != '\0') {
+    return label;
+  }
+
+  if (prefix != CalculatorPrefix::None) {
+    return "n/a";
+  }
+
+  return "";
+}
+
+const char *calculatorKeyHelpDescription(char keyPressed, CalculatorPrefix prefix) {
+  const char *label = helpLabelForKey(keyPressed, prefix);
+  if (label[0] != '\0') {
+    return helpDescriptionForLabel(label);
+  }
+
+  return missingShiftDescription(prefix);
+}
+
 const char *calculatorLegend(uint8_t page) {
   switch (page) {
     case 0:
@@ -262,7 +582,7 @@ const char *calculatorLegend(uint8_t page) {
     case 6:
       return "p4Abs p5Sign cClr";
     case 7:
-      return "a+/b- trig=rad";
+      return "aHelp bDim rad";
     default:
       return "";
   }
