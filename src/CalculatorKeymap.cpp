@@ -466,6 +466,16 @@ CalculatorAction shiftedActionForKey(CalculatorPrefix prefix, char keyPressed) {
           return CalculatorAction::AbsoluteValue;
         case '5':
           return CalculatorAction::Sign;
+        case '6':
+          return CalculatorAction::HourToHourMinute;
+        case '+':
+          return CalculatorAction::HourMinuteToHour;
+        case '3':
+          return CalculatorAction::HourToHourMinuteSecond;
+        case 'u':
+          return CalculatorAction::HourMinuteSecondToHour;
+        case 'v':
+          return CalculatorAction::RandomValue;
         default:
           return CalculatorAction::None;
       }

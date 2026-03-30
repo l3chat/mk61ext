@@ -54,6 +54,11 @@ enum class CalculatorAction : uint8_t {
   AbsoluteValue,
   Sign,
   MaxXY,
+  HourToHourMinute,
+  HourMinuteToHour,
+  HourToHourMinuteSecond,
+  HourMinuteSecondToHour,
+  RandomValue,
   ClearX,
   ClearAll,
 };
@@ -78,6 +83,7 @@ public:
 
   void reset();
   bool apply(CalculatorAction action);
+  void seedRandom(uint32_t seed);
 
   CalculatorStack stack() const;
   bool isEntering() const { return entering_; }
@@ -115,6 +121,11 @@ private:
   bool absoluteValue();
   bool sign();
   bool maxXY();
+  bool hourToHourMinute();
+  bool hourMinuteToHour();
+  bool hourToHourMinuteSecond();
+  bool hourMinuteSecondToHour();
+  bool randomValue();
   bool clearX();
   bool clearAll();
   bool performBinaryOperation(CalculatorAction action);
@@ -124,6 +135,7 @@ private:
   void finishEntry();
   void clearError();
   void updateExponentValue();
+  uint32_t nextRandomUint32();
   void liftStack();
   void dropStack();
 
@@ -138,6 +150,7 @@ private:
   int exponentValue_ = 0;
   int exponentSign_ = 1;
   CalculatorError error_ = CalculatorError::None;
+  uint32_t randomState_ = 1;
 };
 
 #endif

@@ -86,6 +86,11 @@ The current provisional MK-61-inspired run-mode subset is:
 - `p`, then `9`: `max`
 - `p`, then `4`: `|x|`
 - `p`, then `5`: `sign`
+- `p`, then `6`: `H->H.M`
+- `p`, then `+`: `H.M->H`
+- `p`, then `3`: `H->H.M.S`
+- `p`, then `u`: `H.M.S->H`
+- `p`, then `v`: `RND`
 - `c`: clear all
 - `a`: backlight brighter
 - `b`: backlight dimmer
@@ -179,6 +184,17 @@ This verifies the newly implemented scientific and utility operations.
 26. Confirm `X` becomes `0.75`.
 27. Press `c`, then `2`, then `v`, then `5`, then `p`, then `9`.
 28. Confirm `X` becomes `5`.
+29. Press `c`, then `2`, then `.`, then `5`, then `p`, then `6`.
+30. Confirm `X` becomes `2.3`.
+31. Press `c`, then `2`, then `.`, then `3`, then `0`, then `3`, then `0`, then `p`, then `+`.
+32. Confirm `X` becomes approximately `2.505`.
+33. Press `c`, then `2`, then `.`, then `5`, then `0`, then `8`, then `3`, then `3`, then `3`, then `p`, then `3`.
+34. Confirm `X` becomes approximately `2.303`.
+35. Press `c`, then `2`, then `.`, then `3`, then `0`, then `3`, then `0`, then `p`, then `u`.
+36. Confirm `X` becomes approximately `2.508333`.
+37. Press `c`, then `p`, then `v`.
+38. Confirm `X` is greater than or equal to `0`.
+39. Confirm `X` is less than `1`.
 
 ## Entry Stack-Lift Check
 
@@ -232,6 +248,6 @@ This verifies the recent keypad timing fix.
 - The active runtime subset now uses the bottom six rows of the matrix for calculator keys and begins to follow the planned MK-61 prefix model with `k` = `F` and `p` = `K`.
 - The `a` and `b` keys now control backlight brighter/dimmer again, and `e` toggles the on-device help mode. While help mode is active, key presses show descriptions instead of performing their normal actions.
 - The currently wired `F`-layer now includes trig, inverse trig, powers, exponentials, logarithms, `LAST X`, and the earlier `R↓`, `sqrt`, `1/x`, and `pi` functions.
-- The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, and `sign`.
+- The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, `sign`, the hour/minute conversion functions, and `RND`.
 - The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left, optionally prefixed by `F` or `K` when a one-shot prefix is armed, and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
 - The stack area now uses four uniform text rows without frames or separator lines.

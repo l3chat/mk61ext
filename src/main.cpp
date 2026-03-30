@@ -542,6 +542,7 @@ void setup() {
   setupEeprom();
   display.sendBuffer();
   delay(3000);
+  calculator.seedRandom(static_cast<uint32_t>(micros()) ^ 0xA5A55A5Au);
 }
 
 void loop() {

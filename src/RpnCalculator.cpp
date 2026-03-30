@@ -9,6 +9,9 @@ bool isNegative(CalculatorValue value) {
 }
 
 constexpr CalculatorValue kPi = 3.14159265358979323846;
+constexpr CalculatorValue kMinuteLimit = 60.0;
+constexpr CalculatorValue kSecondLimit = 60.0;
+constexpr CalculatorValue kNormalizationEpsilon = 1e-9;
 
 }  // namespace
 
@@ -113,6 +116,16 @@ bool RpnCalculator::apply(CalculatorAction action) {
       return sign();
     case CalculatorAction::MaxXY:
       return maxXY();
+    case CalculatorAction::HourToHourMinute:
+      return hourToHourMinute();
+    case CalculatorAction::HourMinuteToHour:
+      return hourMinuteToHour();
+    case CalculatorAction::HourToHourMinuteSecond:
+      return hourToHourMinuteSecond();
+    case CalculatorAction::HourMinuteSecondToHour:
+      return hourMinuteSecondToHour();
+    case CalculatorAction::RandomValue:
+      return randomValue();
     case CalculatorAction::ClearX:
       return clearX();
     case CalculatorAction::ClearAll:
@@ -120,6 +133,10 @@ bool RpnCalculator::apply(CalculatorAction action) {
   }
 
   return false;
+}
+
+void RpnCalculator::seedRandom(uint32_t seed) {
+  randomState_ = (seed != 0) ? seed : 1;
 }
 
 CalculatorStack RpnCalculator::stack() const {
@@ -606,6 +623,120 @@ bool RpnCalculator::maxXY() {
   return true;
 }
 
+bool RpnCalculator::hourToHourMinute() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  const CalculatorValue sign = isNegative(stack_[0]) ? -1.0 : 1.0;
+  CalculatorValue magnitude = std::fabs(stack_[0]);
+  CalculatorValue hours = std::trunc(magnitude);
+  CalculatorValue minutes = (magnitude - hours) * 60.0;
+
+  if (minutes >= (kMinuteLimit - kNormalizationEpsilon)) {
+    hours += 1.0;
+    minutes = 0.0;
+  }
+
+  stack_[0] = sign * (hours + (minutes / 100.0));
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::hourMinuteToHour() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  const CalculatorValue sign = isNegative(stack_[0]) ? -1.0 : 1.0;
+  const CalculatorValue magnitude = std::fabs(stack_[0]);
+  const CalculatorValue hours = std::trunc(magnitude);
+  const CalculatorValue minuteValue = (magnitude - hours) * 100.0;
+
+  if (minuteValue >= (kMinuteLimit + kNormalizationEpsilon)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = sign * (hours + (minuteValue / 60.0));
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::hourToHourMinuteSecond() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  const CalculatorValue sign = isNegative(stack_[0]) ? -1.0 : 1.0;
+  const CalculatorValue magnitude = std::fabs(stack_[0]);
+  CalculatorValue hours = std::trunc(magnitude);
+  CalculatorValue minuteValue = (magnitude - hours) * 60.0;
+  CalculatorValue minutes = std::trunc(minuteValue);
+  CalculatorValue seconds = (minuteValue - minutes) * 60.0;
+
+  if (seconds >= (kSecondLimit - kNormalizationEpsilon)) {
+    minutes += 1.0;
+    seconds = 0.0;
+  }
+
+  if (minutes >= (kMinuteLimit - kNormalizationEpsilon)) {
+    hours += 1.0;
+    minutes = 0.0;
+  }
+
+  stack_[0] = sign * (hours + (minutes / 100.0) + (seconds / 10000.0));
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::hourMinuteSecondToHour() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+
+  const CalculatorValue sign = isNegative(stack_[0]) ? -1.0 : 1.0;
+  const CalculatorValue magnitude = std::fabs(stack_[0]);
+  const CalculatorValue hours = std::trunc(magnitude);
+  const CalculatorValue minuteSecondValue = (magnitude - hours) * 100.0;
+  const CalculatorValue minutes = std::trunc(minuteSecondValue);
+  const CalculatorValue seconds = (minuteSecondValue - minutes) * 100.0;
+
+  if ((minutes >= (kMinuteLimit + kNormalizationEpsilon)) ||
+      (seconds >= (kSecondLimit + kNormalizationEpsilon))) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  stack_[0] = sign * (hours + (minutes / 60.0) + (seconds / 3600.0));
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::randomValue() {
+  if (hasError()) {
+    clearX();
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = static_cast<CalculatorValue>(nextRandomUint32()) / 4294967296.0;
+  stackLiftEnabled_ = true;
+  return true;
+}
+
 bool RpnCalculator::clearX() {
   rememberLastX();
   stack_[0] = 0.0;
@@ -695,6 +826,19 @@ void RpnCalculator::clearError() {
 
 void RpnCalculator::updateExponentValue() {
   stack_[0] = exponentMantissa_ * std::pow(10.0, exponentSign_ * exponentValue_);
+}
+
+uint32_t RpnCalculator::nextRandomUint32() {
+  if (randomState_ == 0) {
+    randomState_ = 1;
+  }
+
+  uint32_t state = randomState_;
+  state ^= state << 13;
+  state ^= state >> 17;
+  state ^= state << 5;
+  randomState_ = state;
+  return randomState_;
 }
 
 void RpnCalculator::liftStack() {
