@@ -39,6 +39,44 @@ RpnCalculator::RpnCalculator() {
 }
 
 void RpnCalculator::reset() {
+  registers_.fill(0.0);
+  clearStackState();
+}
+
+bool RpnCalculator::recallRegister(uint8_t index) {
+  if (hasError()) {
+    return false;
+  }
+
+  if (!isValidRegisterIndex(index)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = registers_[index];
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::storeRegister(uint8_t index) {
+  if (hasError()) {
+    return false;
+  }
+
+  if (!isValidRegisterIndex(index)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  finishEntry();
+  registers_[index] = stack_[0];
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+void RpnCalculator::clearStackState() {
   stack_ = {0.0, 0.0, 0.0, 0.0};
   entering_ = false;
   decimalMode_ = false;
@@ -856,7 +894,7 @@ bool RpnCalculator::clearX() {
 }
 
 bool RpnCalculator::clearAll() {
-  reset();
+  clearStackState();
   return true;
 }
 
@@ -897,6 +935,10 @@ bool RpnCalculator::performBinaryOperation(CalculatorAction action) {
   dropStack();
   stackLiftEnabled_ = true;
   return true;
+}
+
+bool RpnCalculator::isValidRegisterIndex(uint8_t index) const {
+  return index < registers_.size();
 }
 
 void RpnCalculator::rememberLastX() {

@@ -83,10 +83,14 @@ struct CalculatorStack {
 
 class RpnCalculator {
 public:
+  static constexpr uint8_t kRegisterCount = 15;
+
   RpnCalculator();
 
   void reset();
   bool apply(CalculatorAction action);
+  bool recallRegister(uint8_t index);
+  bool storeRegister(uint8_t index);
   void seedRandom(uint32_t seed);
 
   CalculatorStack stack() const;
@@ -138,7 +142,9 @@ private:
   bool clearAll();
   bool performBinaryOperation(CalculatorAction action);
 
+  bool isValidRegisterIndex(uint8_t index) const;
   void rememberLastX();
+  void clearStackState();
   void startEntry();
   void finishEntry();
   void clearError();
@@ -155,6 +161,7 @@ private:
   CalculatorValue decimalScale_ = 0.1;
   CalculatorValue exponentMantissa_ = 0.0;
   CalculatorValue lastX_ = 0.0;
+  std::array<CalculatorValue, kRegisterCount> registers_{{}};
   int exponentValue_ = 0;
   int exponentSign_ = 1;
   CalculatorError error_ = CalculatorError::None;

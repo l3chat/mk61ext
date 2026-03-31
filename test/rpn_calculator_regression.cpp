@@ -157,12 +157,50 @@ void testBitwiseValidation() {
               "out-of-range values should trigger domain error");
 }
 
+void testRegisterStoreRecall() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "42");
+  expectTrue(calculator.storeRegister(5), "store register 5 should succeed");
+  expectEqual(calculator.stack().x, 42.0, "storing should leave X unchanged");
+
+  clearAndEnter(calculator, "0");
+  expectTrue(calculator.recallRegister(5), "recall register 5 should succeed");
+  expectEqual(calculator.stack().x, 42.0, "recalling register 5 should restore 42");
+
+  clearAndEnter(calculator, "88");
+  expectTrue(calculator.storeRegister(14), "store register e should succeed");
+
+  press(calculator, CalculatorAction::ClearAll, "clear all should succeed");
+  expectEqual(calculator.stack().x, 0.0, "clear all should clear X");
+  expectTrue(calculator.recallRegister(14), "recall register e should succeed after clear all");
+  expectEqual(calculator.stack().x, 88.0, "clear all should not erase stored registers");
+}
+
+void testRegisterValidation() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "1");
+  expectFalse(calculator.storeRegister(RpnCalculator::kRegisterCount),
+              "store should reject out-of-range register indexes");
+  expectError(calculator, CalculatorError::DomainError,
+              "invalid register stores should trigger domain error");
+
+  calculator.reset();
+  expectFalse(calculator.recallRegister(RpnCalculator::kRegisterCount),
+              "recall should reject out-of-range register indexes");
+  expectError(calculator, CalculatorError::DomainError,
+              "invalid register recalls should trigger domain error");
+}
+
 }  // namespace
 
 int main() {
   testBitwiseBinaryOps();
   testUnsignedBehavior();
   testBitwiseValidation();
-  std::cout << "RpnCalculator bitwise regression tests passed.\n";
+  testRegisterStoreRecall();
+  testRegisterValidation();
+  std::cout << "RpnCalculator regression tests passed.\n";
   return 0;
 }

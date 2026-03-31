@@ -64,10 +64,6 @@ const char *helpLabelForKey(char keyPressed, CalculatorPrefix prefix) {
     return "LIGHT-";
   }
 
-  if (keyPressed == 'c') {
-    return "CLR";
-  }
-
   if (keyPressed == 'e') {
     return "HELP";
   }
@@ -119,9 +115,6 @@ const char *helpDescriptionForLabel(const char *label) {
   if (labelEquals(label, "HELP")) {
     return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting.";
   }
-  if (labelEquals(label, "CLR")) {
-    return "Clear all stack registers and the current entry state.";
-  }
   if (labelEquals(label, "F")) {
     return "Arm the one-shot F prefix. Press the next key to inspect or use its F-shifted meaning.";
   }
@@ -141,10 +134,10 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Run or stop a stored program.";
   }
   if (labelEquals(label, "RCL")) {
-    return "Recall a register value into X.";
+    return "Arm direct register recall. Press 0-9, or use . x y z v for registers a-e.";
   }
   if (labelEquals(label, "STO")) {
-    return "Store X into a register.";
+    return "Arm direct register store. Press 0-9, or use . x y z v for registers a-e.";
   }
   if (labelEquals(label, "GTO")) {
     return "Jump to the specified program address.";
@@ -406,8 +399,6 @@ CalculatorAction primaryActionForKey(char keyPressed) {
       return CalculatorAction::SwapXY;
     case 'z':
       return CalculatorAction::ClearX;
-    case 'c':
-      return CalculatorAction::ClearAll;
     default:
       return CalculatorAction::None;
   }

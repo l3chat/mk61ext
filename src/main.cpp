@@ -151,6 +151,12 @@ struct HelpState {
   CalculatorPrefix prefix = CalculatorPrefix::None;
 };
 
+enum class PendingRegisterOperation : uint8_t {
+  None,
+  Recall,
+  Store,
+};
+
 Keypad keypad(makeKeymap(kKeyMap), kRowPins, kColumnPins, kRowCount, kColumnCount);
 TwoWire eepromWire(kEepromSdaPin, kEepromSclPin);
 ExternalEEPROM eeprom;
@@ -166,6 +172,7 @@ U8G2_ST7565_ERC12864_F_4W_SW_SPI display(
 int brightness = 256;
 KeypadDiagnostics keypadDiagnostics;
 HelpState helpState;
+PendingRegisterOperation pendingRegisterOperation = PendingRegisterOperation::None;
 
 void applyBrightness() {
   if (brightness >= 256) {
@@ -199,9 +206,59 @@ void clearHelpSelection() {
   helpState.prefix = CalculatorPrefix::None;
 }
 
+void clearPendingRegisterOperation() {
+  pendingRegisterOperation = PendingRegisterOperation::None;
+}
+
+void armPendingRegisterOperation(PendingRegisterOperation operation) {
+  pendingRegisterOperation = operation;
+  resetCalculatorKeymapState();
+}
+
+const char *pendingRegisterOperationName() {
+  switch (pendingRegisterOperation) {
+    case PendingRegisterOperation::Recall:
+      return "RCL";
+    case PendingRegisterOperation::Store:
+      return "STO";
+    case PendingRegisterOperation::None:
+      return "";
+  }
+
+  return "";
+}
+
+bool decodeRegisterKey(char keyPressed, uint8_t &index) {
+  if ((keyPressed >= '0') && (keyPressed <= '9')) {
+    index = static_cast<uint8_t>(keyPressed - '0');
+    return true;
+  }
+
+  switch (keyPressed) {
+    case '.':
+      index = 10;
+      return true;
+    case 'x':
+      index = 11;
+      return true;
+    case 'y':
+      index = 12;
+      return true;
+    case 'z':
+      index = 13;
+      return true;
+    case 'v':
+      index = 14;
+      return true;
+    default:
+      return false;
+  }
+}
+
 void setHelpMode(bool enabled) {
   helpState.enabled = enabled;
   clearHelpSelection();
+  clearPendingRegisterOperation();
   resetCalculatorKeymapState();
 }
 
@@ -216,7 +273,7 @@ void rememberHelpSelection(char keyPressed, CalculatorPrefix prefix) {
 }
 
 void handleHelpPressedKey(char keyPressed) {
-  if ((keyPressed == 'a') || (keyPressed == 'b') || (keyPressed == 'c')) {
+  if ((keyPressed == 'a') || (keyPressed == 'b')) {
     resetCalculatorKeymapState();
     rememberHelpSelection(keyPressed, CalculatorPrefix::None);
     return;
@@ -228,6 +285,43 @@ void handleHelpPressedKey(char keyPressed) {
   rememberHelpSelection(keyPressed, prefixBefore);
 }
 
+bool handleRegisterOperationKey(char keyPressed) {
+  if ((activeCalculatorPrefix() == CalculatorPrefix::None) && (keyPressed == 'q')) {
+    armPendingRegisterOperation(PendingRegisterOperation::Recall);
+    return true;
+  }
+
+  if ((activeCalculatorPrefix() == CalculatorPrefix::None) && (keyPressed == 'r')) {
+    armPendingRegisterOperation(PendingRegisterOperation::Store);
+    return true;
+  }
+
+  if (pendingRegisterOperation == PendingRegisterOperation::None) {
+    return false;
+  }
+
+  const PendingRegisterOperation operation = pendingRegisterOperation;
+  clearPendingRegisterOperation();
+
+  uint8_t registerIndex = 0;
+  if (!decodeRegisterKey(keyPressed, registerIndex)) {
+    return true;
+  }
+
+  switch (operation) {
+    case PendingRegisterOperation::Recall:
+      (void)calculator.recallRegister(registerIndex);
+      return true;
+    case PendingRegisterOperation::Store:
+      (void)calculator.storeRegister(registerIndex);
+      return true;
+    case PendingRegisterOperation::None:
+      return false;
+  }
+
+  return false;
+}
+
 void handlePressedKey(char keyPressed) {
   if (keyPressed == 'e') {
     toggleHelpMode();
@@ -236,6 +330,10 @@ void handlePressedKey(char keyPressed) {
 
   if (helpState.enabled) {
     handleHelpPressedKey(keyPressed);
+    return;
+  }
+
+  if (handleRegisterOperationKey(keyPressed)) {
     return;
   }
 
@@ -398,6 +496,9 @@ void drawStatusBar() {
   } else if (calculator.hasError()) {
     snprintf(leftBuffer, sizeof(leftBuffer), "ERR %s", calculator.errorMessage());
     rightBuffer[0] = '\0';
+  } else if (pendingRegisterOperation != PendingRegisterOperation::None) {
+    snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s", pendingRegisterOperationName());
+    formatEventLabel(rightBuffer, sizeof(rightBuffer));
   } else {
     const char *prefixName = activeCalculatorPrefixName();
     if (prefixName[0] != '\0') {

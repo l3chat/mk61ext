@@ -17,7 +17,7 @@ The short labels in this file are working mnemonics, not final cap text.
 
 Assignments that are not yet implemented are marked in-place as *`like this`*.
 
-The `a`-`j` extension block is still the long-term mk61ext extension area, but the current firmware already uses `a`, `b`, `c`, and `e` for temporary convenience functions.
+The `a`-`j` extension block is still the long-term mk61ext extension area, but the current firmware currently uses only `a`, `b`, and `e` for temporary convenience functions while `c` is free again.
 
 That distinction matters because several labels are faithful to MK-61 shorthand but are not especially readable on first contact:
 
@@ -30,13 +30,13 @@ That distinction matters because several labels are faithful to MK-61 shorthand 
 
 ### Extension Rows
 
-These rows are reserved for mk61ext-specific features in the long term, but a few keys already have temporary live firmware assignments:
+These rows are reserved for mk61ext-specific features in the long term, but a few keys still have temporary live firmware assignments:
 
 | Raw key | Primary | Meaning |
 | --- | --- | --- |
 | `a` | `LIGHT+` | Current firmware brightens the backlight; the longer-term extension slot is still open. |
 | `b` | `LIGHT-` | Current firmware dims the backlight; the longer-term extension slot is still open. |
-| `c` | `CLR` | Current firmware clears the calculator state; the longer-term extension slot is still open. |
+| `c` | *`EXT3`* | Reserved for mk61ext-specific features. |
 | `d` | *`EXT4`* | Reserved for mk61ext-specific features. |
 | `e` | `HELP` | Current firmware toggles help mode; the longer-term extension slot is still open. |
 | `f` | *`EXT6`* | Reserved for mk61ext-specific features. |
@@ -64,8 +64,8 @@ This 6x5 block is the planned MK-61-style keyboard:
 | Raw key | Primary | What it does | `F`-shifted | What it does | `K`-shifted | What it does |
 | --- | --- | --- | --- | --- | --- | --- |
 | `p` | `K` | Prefix key that selects the `K` layer for the next keypress. | `—` | No second-level assignment planned here. | `—` | No second-level assignment planned here. |
-| `q` | *`RCL`* | Recall a register value into `X`. | *`DSNZ0`* | Decrement register `0` and branch if it stays non-zero. | *`RCLI`* | Indirect register recall through another register selector. |
-| `r` | *`STO`* | Store `X` into a register. | *`DSNZ1`* | Decrement register `1` and branch if it stays non-zero. | *`STOI`* | Indirect register store through another register selector. |
+| `q` | `RCL` | Recall a register value into `X`. Use `0`-`9`, or `. x y z v` for registers `a`-`e`. | *`DSNZ0`* | Decrement register `0` and branch if it stays non-zero. | *`RCLI`* | Indirect register recall through another register selector. |
+| `r` | `STO` | Store `X` into a register. Use `0`-`9`, or `. x y z v` for registers `a`-`e`. | *`DSNZ1`* | Decrement register `1` and branch if it stays non-zero. | *`STOI`* | Indirect register store through another register selector. |
 | `s` | *`GTO`* | Jump to the following program address. | *`DSNZ2`* | Decrement register `2` and branch if it stays non-zero. | *`JPI`* | Indirect jump using an address held in a register. |
 | `t` | *`GSB/SST`* | In calculator mode, single-step a program; in program mode, call a subroutine. | *`DSNZ3`* | Decrement register `3` and branch if it stays non-zero. | *`GSBI`* | Indirect subroutine call using an address held in a register. |
 
