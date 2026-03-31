@@ -91,8 +91,8 @@ The current provisional MK-61-inspired run-mode subset is:
 - `p`, then `3`: `H->H.M.S`
 - `p`, then `u`: `H.M.S->H`
 - `p`, then `v`: `RND`
-- `p`, then `.` / `x` / `y`: `AND` / `OR` / `XOR` on signed 32-bit whole numbers
-- `p`, then `z`: `NOT` on a signed 32-bit whole number
+- `p`, then `.` / `x` / `y`: `AND` / `OR` / `XOR` on unsigned 32-bit whole numbers
+- `p`, then `z`: `NOT` on an unsigned 32-bit whole number
 - `c`: clear all
 - `a`: backlight brighter
 - `b`: backlight dimmer
@@ -197,16 +197,22 @@ This verifies the newly implemented scientific and utility operations.
 37. Press `c`, then `p`, then `v`.
 38. Confirm `X` is greater than or equal to `0`.
 39. Confirm `X` is less than `1`.
-40. Press `c`, then `6`, then `v`, then `3`, then `p`, then `.`.
-41. Confirm `X` becomes `2`.
-42. Press `c`, then `6`, then `v`, then `3`, then `p`, then `x`.
-43. Confirm `X` becomes `7`.
-44. Press `c`, then `6`, then `v`, then `3`, then `p`, then `y`.
-45. Confirm `X` becomes `5`.
-46. Press `c`, then `6`, then `p`, then `z`.
-47. Confirm `X` becomes `-7` using signed 32-bit `NOT`.
-48. Press `c`, then `1`, then `.`, then `5`, then `v`, then `3`, then `p`, then `.`.
-49. Confirm the calculator shows `domain error` because bitwise ops currently require whole-number inputs in signed 32-bit range.
+40. Press `c`, then `1`, then `2`, then `v`, then `1`, then `0`, then `p`, then `.`.
+41. Confirm `X` becomes `8`.
+42. Press `c`, then `1`, then `2`, then `v`, then `1`, then `0`, then `p`, then `x`.
+43. Confirm `X` becomes `14`.
+44. Press `c`, then `1`, then `2`, then `v`, then `1`, then `0`, then `p`, then `y`.
+45. Confirm `X` becomes `6`.
+46. Press `c`, then `0`, then `p`, then `z`.
+47. Confirm `X` becomes `4294967295`, showing unsigned 32-bit `NOT`.
+48. Press `c`, then `2`, then `1`, then `4`, then `7`, then `4`, then `8`, then `3`, then `6`, then `4`, then `8`, then `v`, then `1`, then `p`, then `x`.
+49. Confirm `X` becomes `2147483649`, showing the bitwise path treats values as unsigned instead of signed.
+50. Press `c`, then `1`, then `x`, then `p`, then `z`.
+51. Confirm the calculator shows `domain error` because negative values are invalid for unsigned bitwise operations.
+52. Press `c`, then `1`, then `.`, then `5`, then `v`, then `3`, then `p`, then `.`.
+53. Confirm the calculator shows `domain error` because bitwise ops require whole-number inputs.
+54. Press `c`, then `4`, then `2`, then `9`, then `4`, then `9`, then `6`, then `7`, then `2`, then `9`, then `6`, then `p`, then `z`.
+55. Confirm the calculator shows `domain error` because values above `4294967295` are out of range.
 
 ## Entry Stack-Lift Check
 

@@ -276,16 +276,16 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Programming no-operation instruction.";
   }
   if (labelEquals(label, "AND")) {
-    return "Bitwise AND on Y and X, using signed 32-bit whole-number values and a decimal result.";
+    return "Bitwise AND on Y and X, using unsigned 32-bit whole-number values and a decimal result.";
   }
   if (labelEquals(label, "OR")) {
-    return "Bitwise OR on Y and X, using signed 32-bit whole-number values and a decimal result.";
+    return "Bitwise OR on Y and X, using unsigned 32-bit whole-number values and a decimal result.";
   }
   if (labelEquals(label, "XOR")) {
-    return "Bitwise XOR on Y and X, using signed 32-bit whole-number values and a decimal result.";
+    return "Bitwise XOR on Y and X, using unsigned 32-bit whole-number values and a decimal result.";
   }
   if (labelEquals(label, "NOT")) {
-    return "Bitwise NOT on X, using signed 32-bit whole-number values and a decimal result.";
+    return "Bitwise NOT on X, using unsigned 32-bit whole-number values and a decimal result.";
   }
   if (labelEquals(label, "JP X<0")) {
     return "Planned direct conditional jump when X is less than zero.";

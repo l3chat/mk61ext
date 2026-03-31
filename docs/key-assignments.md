@@ -6,7 +6,7 @@ It is intentionally separate from [manual-test.md](./manual-test.md): the manual
 
 ## Scope
 
-- The current firmware still implements only a smaller unshifted run-mode subset.
+- The current firmware now implements a growing calculator-mode subset of the matrix below, while most programming features are still planned only.
 - The planned layout below is a design/reference table for future keypad and mode work.
 - The original MK-61 keyboard is treated as a 6x5 block and is now mapped onto the bottom six rows of the custom 8x5 matrix.
 - The top two rows, `a`-`j`, are reserved as mk61ext extension space.
@@ -14,6 +14,10 @@ It is intentionally separate from [manual-test.md](./manual-test.md): the manual
 ## Label Direction
 
 The short labels in this file are working mnemonics, not final cap text.
+
+Assignments that are not yet implemented are marked in-place as *`like this`*.
+
+The `a`-`j` extension block is still the long-term mk61ext extension area, but the current firmware already uses `a`, `b`, `c`, and `e` for temporary convenience functions.
 
 That distinction matters because several labels are faithful to MK-61 shorthand but are not especially readable on first contact:
 
@@ -26,20 +30,20 @@ That distinction matters because several labels are faithful to MK-61 shorthand 
 
 ### Extension Rows
 
-These are intentionally left open for mk61ext-specific features:
+These rows are reserved for mk61ext-specific features in the long term, but a few keys already have temporary live firmware assignments:
 
 | Raw key | Primary | Meaning |
 | --- | --- | --- |
-| `a` | `EXT1` | Reserved for mk61ext-specific features. |
-| `b` | `EXT2` | Reserved for mk61ext-specific features. |
-| `c` | `EXT3` | Reserved for mk61ext-specific features. |
-| `d` | `EXT4` | Reserved for mk61ext-specific features. |
-| `e` | `EXT5` | Reserved for mk61ext-specific features. |
-| `f` | `EXT6` | Reserved for mk61ext-specific features. |
-| `g` | `EXT7` | Reserved for mk61ext-specific features. |
-| `h` | `EXT8` | Reserved for mk61ext-specific features. |
-| `i` | `EXT9` | Reserved for mk61ext-specific features. |
-| `j` | `EXT10` | Reserved for mk61ext-specific features. |
+| `a` | `LIGHT+` | Current firmware brightens the backlight; the longer-term extension slot is still open. |
+| `b` | `LIGHT-` | Current firmware dims the backlight; the longer-term extension slot is still open. |
+| `c` | `CLR` | Current firmware clears the calculator state; the longer-term extension slot is still open. |
+| `d` | *`EXT4`* | Reserved for mk61ext-specific features. |
+| `e` | `HELP` | Current firmware toggles help mode; the longer-term extension slot is still open. |
+| `f` | *`EXT6`* | Reserved for mk61ext-specific features. |
+| `g` | *`EXT7`* | Reserved for mk61ext-specific features. |
+| `h` | *`EXT8`* | Reserved for mk61ext-specific features. |
+| `i` | *`EXT9`* | Reserved for mk61ext-specific features. |
+| `j` | *`EXT10`* | Reserved for mk61ext-specific features. |
 
 ### Bottom Six Rows
 
@@ -50,20 +54,20 @@ This 6x5 block is the planned MK-61-style keyboard:
 | Raw key | Primary | What it does | `F`-shifted | What it does | `K`-shifted | What it does |
 | --- | --- | --- | --- | --- | --- | --- |
 | `k` | `F` | Prefix key that selects the `F` layer for the next keypress. | `—` | No second-level assignment planned here. | `—` | No second-level assignment planned here. |
-| `l` | `SST` | Step forward by one program step while inspecting program memory. | `JP X<0` | Conditional program branch keyed on `X<0`. | `JPI X<0` | Indirect conditional branch using an address/register reference. |
-| `m` | `BST` | Step backward by one program step while inspecting program memory. | `JP X=0` | Conditional program branch keyed on `X=0`. | `JPI X=0` | Indirect conditional branch keyed on `X=0`. |
-| `n` | `RTN/0` | Return from subroutine in program mode, or reset the program counter to `00` in calculator mode. | `JP X>=0` | Conditional branch keyed on `X>=0`. | `JPI X>=0` | Indirect conditional branch keyed on `X>=0`. |
-| `o` | `R/S` | Run or stop a program; in program mode this is the halt command. | `JP X<>0` | Conditional branch keyed on `X<>0`. | `JPI X<>0` | Indirect conditional branch keyed on `X<>0`. |
+| `l` | *`SST`* | Step forward by one program step while inspecting program memory. | *`JP X<0`* | Conditional program branch keyed on `X<0`. | *`JPI X<0`* | Indirect conditional branch using an address/register reference. |
+| `m` | *`BST`* | Step backward by one program step while inspecting program memory. | *`JP X=0`* | Conditional program branch keyed on `X=0`. | *`JPI X=0`* | Indirect conditional branch keyed on `X=0`. |
+| `n` | *`RTN/0`* | Return from subroutine in program mode, or reset the program counter to `00` in calculator mode. | *`JP X>=0`* | Conditional branch keyed on `X>=0`. | *`JPI X>=0`* | Indirect conditional branch keyed on `X>=0`. |
+| `o` | *`R/S`* | Run or stop a program; in program mode this is the halt command. | *`JP X<>0`* | Conditional branch keyed on `X<>0`. | *`JPI X<>0`* | Indirect conditional branch keyed on `X<>0`. |
 
 #### Row `p`-`t`
 
 | Raw key | Primary | What it does | `F`-shifted | What it does | `K`-shifted | What it does |
 | --- | --- | --- | --- | --- | --- | --- |
 | `p` | `K` | Prefix key that selects the `K` layer for the next keypress. | `—` | No second-level assignment planned here. | `—` | No second-level assignment planned here. |
-| `q` | `RCL` | Recall a register value into `X`. | `DSNZ0` | Decrement register `0` and branch if it stays non-zero. | `RCLI` | Indirect register recall through another register selector. |
-| `r` | `STO` | Store `X` into a register. | `DSNZ1` | Decrement register `1` and branch if it stays non-zero. | `STOI` | Indirect register store through another register selector. |
-| `s` | `GTO` | Jump to the following program address. | `DSNZ2` | Decrement register `2` and branch if it stays non-zero. | `JPI` | Indirect jump using an address held in a register. |
-| `t` | `GSB/SST` | In calculator mode, single-step a program; in program mode, call a subroutine. | `DSNZ3` | Decrement register `3` and branch if it stays non-zero. | `GSBI` | Indirect subroutine call using an address held in a register. |
+| `q` | *`RCL`* | Recall a register value into `X`. | *`DSNZ0`* | Decrement register `0` and branch if it stays non-zero. | *`RCLI`* | Indirect register recall through another register selector. |
+| `r` | *`STO`* | Store `X` into a register. | *`DSNZ1`* | Decrement register `1` and branch if it stays non-zero. | *`STOI`* | Indirect register store through another register selector. |
+| `s` | *`GTO`* | Jump to the following program address. | *`DSNZ2`* | Decrement register `2` and branch if it stays non-zero. | *`JPI`* | Indirect jump using an address held in a register. |
+| `t` | *`GSB/SST`* | In calculator mode, single-step a program; in program mode, call a subroutine. | *`DSNZ3`* | Decrement register `3` and branch if it stays non-zero. | *`GSBI`* | Indirect subroutine call using an address held in a register. |
 
 #### Row `7`-`/`
 
@@ -99,11 +103,11 @@ This 6x5 block is the planned MK-61-style keyboard:
 
 | Raw key | Primary | What it does | `F`-shifted | What it does | `K`-shifted | What it does |
 | --- | --- | --- | --- | --- | --- | --- |
-| `0` | `0` | Enter digit `0`. | `10^x` | Raise `10` to the power `X`. | `NOP` | Explicit no-operation program instruction. |
-| `.` | `.` | Enter the decimal point while typing a number. | `Rdown` | Rotate the stack downward. | `AND` | Binary `AND` on decimal whole numbers, using signed 32-bit integer semantics and a decimal result. |
-| `x` | `CHS` | Change the sign of the current `X` value or exponent entry. | `RUN` | Leave programming mode and return to normal calculator mode. | `OR` | Binary `OR` on decimal whole numbers, using signed 32-bit integer semantics and a decimal result. |
-| `y` | `EEX` | Start exponent entry for the current number. | `PRG` | Enter programming mode. | `XOR` | Binary `XOR` on decimal whole numbers, using signed 32-bit integer semantics and a decimal result. |
-| `z` | `CX` | Clear the `X` register. | `CF` | Clear the active prefix key or pending prefix state. | `NOT` | Unary binary `NOT` on a decimal whole number, using signed 32-bit integer semantics and a decimal result. |
+| `0` | `0` | Enter digit `0`. | `10^x` | Raise `10` to the power `X`. | *`NOP`* | Explicit no-operation program instruction. |
+| `.` | `.` | Enter the decimal point while typing a number. | `Rdown` | Rotate the stack downward. | `AND` | Binary `AND` on decimal whole numbers from `0` to `4294967295`, using unsigned 32-bit integer semantics and a decimal result. |
+| `x` | `CHS` | Change the sign of the current `X` value or exponent entry. | *`RUN`* | Leave programming mode and return to normal calculator mode. | `OR` | Binary `OR` on decimal whole numbers from `0` to `4294967295`, using unsigned 32-bit integer semantics and a decimal result. |
+| `y` | `EEX` | Start exponent entry for the current number. | *`PRG`* | Enter programming mode. | `XOR` | Binary `XOR` on decimal whole numbers from `0` to `4294967295`, using unsigned 32-bit integer semantics and a decimal result. |
+| `z` | `CX` | Clear the `X` register. | *`CF`* | Clear the active prefix key or pending prefix state. | `NOT` | Unary binary `NOT` on a decimal whole number from `0` to `4294967295`, using unsigned 32-bit integer semantics and a decimal result. |
 
 ## Notes
 

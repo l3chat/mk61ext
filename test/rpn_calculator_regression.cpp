@@ -1,0 +1,168 @@
+#include "RpnCalculator.h"
+
+#include <cstdint>
+#include <cstdlib>
+#include <iostream>
+
+namespace {
+
+void fail(const char *message) {
+  std::cerr << "FAIL: " << message << '\n';
+  std::exit(1);
+}
+
+void expectTrue(bool condition, const char *message) {
+  if (!condition) {
+    fail(message);
+  }
+}
+
+void expectFalse(bool condition, const char *message) {
+  if (condition) {
+    fail(message);
+  }
+}
+
+void expectEqual(CalculatorValue actual, CalculatorValue expected, const char *message) {
+  if (actual != expected) {
+    std::cerr << "FAIL: " << message << " (expected " << expected << ", got " << actual << ")\n";
+    std::exit(1);
+  }
+}
+
+void expectError(const RpnCalculator &calculator, CalculatorError expected, const char *message) {
+  if (calculator.error() != expected) {
+    std::cerr << "FAIL: " << message << " (expected error " << static_cast<int>(expected)
+              << ", got " << static_cast<int>(calculator.error()) << ")\n";
+    std::exit(1);
+  }
+}
+
+void press(RpnCalculator &calculator, CalculatorAction action, const char *message) {
+  expectTrue(calculator.apply(action), message);
+}
+
+void enterText(RpnCalculator &calculator, const char *text) {
+  for (const char *cursor = text; *cursor != '\0'; ++cursor) {
+    switch (*cursor) {
+      case '0':
+        press(calculator, CalculatorAction::Digit0, "failed to enter digit 0");
+        break;
+      case '1':
+        press(calculator, CalculatorAction::Digit1, "failed to enter digit 1");
+        break;
+      case '2':
+        press(calculator, CalculatorAction::Digit2, "failed to enter digit 2");
+        break;
+      case '3':
+        press(calculator, CalculatorAction::Digit3, "failed to enter digit 3");
+        break;
+      case '4':
+        press(calculator, CalculatorAction::Digit4, "failed to enter digit 4");
+        break;
+      case '5':
+        press(calculator, CalculatorAction::Digit5, "failed to enter digit 5");
+        break;
+      case '6':
+        press(calculator, CalculatorAction::Digit6, "failed to enter digit 6");
+        break;
+      case '7':
+        press(calculator, CalculatorAction::Digit7, "failed to enter digit 7");
+        break;
+      case '8':
+        press(calculator, CalculatorAction::Digit8, "failed to enter digit 8");
+        break;
+      case '9':
+        press(calculator, CalculatorAction::Digit9, "failed to enter digit 9");
+        break;
+      case '.':
+        press(calculator, CalculatorAction::DecimalPoint, "failed to enter decimal point");
+        break;
+      case '-':
+        press(calculator, CalculatorAction::ChangeSign, "failed to change sign");
+        break;
+      default:
+        fail("unsupported test input character");
+    }
+  }
+}
+
+void clearAndEnter(RpnCalculator &calculator, const char *text) {
+  press(calculator, CalculatorAction::ClearAll, "failed to clear calculator");
+  enterText(calculator, text);
+}
+
+void testBitwiseBinaryOps() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "12");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER for AND");
+  enterText(calculator, "10");
+  press(calculator, CalculatorAction::BitwiseAnd, "bitwise AND should succeed");
+  expectEqual(calculator.stack().x, 8.0, "12 AND 10 should equal 8");
+
+  clearAndEnter(calculator, "12");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER for OR");
+  enterText(calculator, "10");
+  press(calculator, CalculatorAction::BitwiseOr, "bitwise OR should succeed");
+  expectEqual(calculator.stack().x, 14.0, "12 OR 10 should equal 14");
+
+  clearAndEnter(calculator, "12");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER for XOR");
+  enterText(calculator, "10");
+  press(calculator, CalculatorAction::BitwiseXor, "bitwise XOR should succeed");
+  expectEqual(calculator.stack().x, 6.0, "12 XOR 10 should equal 6");
+}
+
+void testUnsignedBehavior() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "0");
+  press(calculator, CalculatorAction::BitwiseNot, "bitwise NOT should succeed for zero");
+  expectEqual(calculator.stack().x, 4294967295.0, "NOT 0 should equal 4294967295");
+
+  clearAndEnter(calculator, "4294967295");
+  press(calculator, CalculatorAction::BitwiseNot, "bitwise NOT should succeed for UINT32_MAX");
+  expectEqual(calculator.stack().x, 0.0, "NOT UINT32_MAX should equal 0");
+
+  clearAndEnter(calculator, "2147483648");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER for unsigned OR");
+  enterText(calculator, "1");
+  press(calculator, CalculatorAction::BitwiseOr, "unsigned OR should succeed");
+  expectEqual(calculator.stack().x, 2147483649.0, "2147483648 OR 1 should equal 2147483649");
+}
+
+void testBitwiseValidation() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "1");
+  press(calculator, CalculatorAction::ChangeSign, "failed to create negative test input");
+  expectFalse(calculator.apply(CalculatorAction::BitwiseNot),
+              "bitwise NOT should reject negative values");
+  expectError(calculator, CalculatorError::DomainError,
+              "negative values should trigger domain error");
+
+  clearAndEnter(calculator, "1.5");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER for fractional AND");
+  enterText(calculator, "3");
+  expectFalse(calculator.apply(CalculatorAction::BitwiseAnd),
+              "bitwise AND should reject fractional values");
+  expectError(calculator, CalculatorError::DomainError,
+              "fractional values should trigger domain error");
+
+  clearAndEnter(calculator, "4294967296");
+  expectFalse(calculator.apply(CalculatorAction::BitwiseNot),
+              "bitwise NOT should reject values above UINT32_MAX");
+  expectError(calculator, CalculatorError::DomainError,
+              "out-of-range values should trigger domain error");
+}
+
+}  // namespace
+
+int main() {
+  testBitwiseBinaryOps();
+  testUnsignedBehavior();
+  testBitwiseValidation();
+  std::cout << "RpnCalculator bitwise regression tests passed.\n";
+  return 0;
+}

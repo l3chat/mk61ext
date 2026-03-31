@@ -13,7 +13,7 @@ constexpr CalculatorValue kMinuteLimit = 60.0;
 constexpr CalculatorValue kSecondLimit = 60.0;
 constexpr CalculatorValue kNormalizationEpsilon = 1e-9;
 
-bool coerceToBitwiseInt32(CalculatorValue value, int32_t &result) {
+bool coerceToBitwiseUint32(CalculatorValue value, uint32_t &result) {
   if (!std::isfinite(value)) {
     return false;
   }
@@ -23,12 +23,12 @@ bool coerceToBitwiseInt32(CalculatorValue value, int32_t &result) {
     return false;
   }
 
-  if ((rounded < static_cast<CalculatorValue>(std::numeric_limits<int32_t>::min())) ||
-      (rounded > static_cast<CalculatorValue>(std::numeric_limits<int32_t>::max()))) {
+  if ((rounded < 0.0) ||
+      (rounded > static_cast<CalculatorValue>(std::numeric_limits<uint32_t>::max()))) {
     return false;
   }
 
-  result = static_cast<int32_t>(rounded);
+  result = static_cast<uint32_t>(rounded);
   return true;
 }
 
@@ -658,9 +658,9 @@ bool RpnCalculator::bitwiseAnd() {
   finishEntry();
   rememberLastX();
 
-  int32_t x = 0;
-  int32_t y = 0;
-  if (!coerceToBitwiseInt32(stack_[0], x) || !coerceToBitwiseInt32(stack_[1], y)) {
+  uint32_t x = 0;
+  uint32_t y = 0;
+  if (!coerceToBitwiseUint32(stack_[0], x) || !coerceToBitwiseUint32(stack_[1], y)) {
     error_ = CalculatorError::DomainError;
     return false;
   }
@@ -679,9 +679,9 @@ bool RpnCalculator::bitwiseOr() {
   finishEntry();
   rememberLastX();
 
-  int32_t x = 0;
-  int32_t y = 0;
-  if (!coerceToBitwiseInt32(stack_[0], x) || !coerceToBitwiseInt32(stack_[1], y)) {
+  uint32_t x = 0;
+  uint32_t y = 0;
+  if (!coerceToBitwiseUint32(stack_[0], x) || !coerceToBitwiseUint32(stack_[1], y)) {
     error_ = CalculatorError::DomainError;
     return false;
   }
@@ -700,9 +700,9 @@ bool RpnCalculator::bitwiseXor() {
   finishEntry();
   rememberLastX();
 
-  int32_t x = 0;
-  int32_t y = 0;
-  if (!coerceToBitwiseInt32(stack_[0], x) || !coerceToBitwiseInt32(stack_[1], y)) {
+  uint32_t x = 0;
+  uint32_t y = 0;
+  if (!coerceToBitwiseUint32(stack_[0], x) || !coerceToBitwiseUint32(stack_[1], y)) {
     error_ = CalculatorError::DomainError;
     return false;
   }
@@ -721,8 +721,8 @@ bool RpnCalculator::bitwiseNot() {
   finishEntry();
   rememberLastX();
 
-  int32_t x = 0;
-  if (!coerceToBitwiseInt32(stack_[0], x)) {
+  uint32_t x = 0;
+  if (!coerceToBitwiseUint32(stack_[0], x)) {
     error_ = CalculatorError::DomainError;
     return false;
   }
