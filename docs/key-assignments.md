@@ -100,10 +100,10 @@ This 6x5 block is the planned MK-61-style keyboard:
 | Raw key | Primary | What it does | `F`-shifted | What it does | `K`-shifted | What it does |
 | --- | --- | --- | --- | --- | --- | --- |
 | `0` | `0` | Enter digit `0`. | `10^x` | Raise `10` to the power `X`. | `NOP` | Explicit no-operation program instruction. |
-| `.` | `.` | Enter the decimal point while typing a number. | `Rdown` | Rotate the stack downward. | `AND` | Binary `AND` using the fractional digits as bitfields. |
-| `x` | `CHS` | Change the sign of the current `X` value or exponent entry. | `RUN` | Leave programming mode and return to normal calculator mode. | `OR` | Binary `OR` using the fractional digits as bitfields. |
-| `y` | `EEX` | Start exponent entry for the current number. | `PRG` | Enter programming mode. | `XOR` | Binary `XOR` using the fractional digits as bitfields. |
-| `z` | `CX` | Clear the `X` register. | `CF` | Clear the active prefix key or pending prefix state. | `NOT` | Unary binary `NOT` on the current bitfield representation. |
+| `.` | `.` | Enter the decimal point while typing a number. | `Rdown` | Rotate the stack downward. | `AND` | Binary `AND` on decimal whole numbers, using signed 32-bit integer semantics and a decimal result. |
+| `x` | `CHS` | Change the sign of the current `X` value or exponent entry. | `RUN` | Leave programming mode and return to normal calculator mode. | `OR` | Binary `OR` on decimal whole numbers, using signed 32-bit integer semantics and a decimal result. |
+| `y` | `EEX` | Start exponent entry for the current number. | `PRG` | Enter programming mode. | `XOR` | Binary `XOR` on decimal whole numbers, using signed 32-bit integer semantics and a decimal result. |
+| `z` | `CX` | Clear the `X` register. | `CF` | Clear the active prefix key or pending prefix state. | `NOT` | Unary binary `NOT` on a decimal whole number, using signed 32-bit integer semantics and a decimal result. |
 
 ## Notes
 

@@ -54,6 +54,10 @@ enum class CalculatorAction : uint8_t {
   AbsoluteValue,
   Sign,
   MaxXY,
+  BitwiseAnd,
+  BitwiseOr,
+  BitwiseXor,
+  BitwiseNot,
   HourToHourMinute,
   HourMinuteToHour,
   HourToHourMinuteSecond,
@@ -121,6 +125,10 @@ private:
   bool absoluteValue();
   bool sign();
   bool maxXY();
+  bool bitwiseAnd();
+  bool bitwiseOr();
+  bool bitwiseXor();
+  bool bitwiseNot();
   bool hourToHourMinute();
   bool hourMinuteToHour();
   bool hourToHourMinuteSecond();

@@ -276,16 +276,16 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Programming no-operation instruction.";
   }
   if (labelEquals(label, "AND")) {
-    return "Planned MK-61 boolean AND operation on bitfield-style values.";
+    return "Bitwise AND on Y and X, using signed 32-bit whole-number values and a decimal result.";
   }
   if (labelEquals(label, "OR")) {
-    return "Planned MK-61 boolean OR operation on bitfield-style values.";
+    return "Bitwise OR on Y and X, using signed 32-bit whole-number values and a decimal result.";
   }
   if (labelEquals(label, "XOR")) {
-    return "Planned MK-61 boolean XOR operation on bitfield-style values.";
+    return "Bitwise XOR on Y and X, using signed 32-bit whole-number values and a decimal result.";
   }
   if (labelEquals(label, "NOT")) {
-    return "Planned MK-61 boolean NOT operation on the current bitfield-style value.";
+    return "Bitwise NOT on X, using signed 32-bit whole-number values and a decimal result.";
   }
   if (labelEquals(label, "JP X<0")) {
     return "Planned direct conditional jump when X is less than zero.";
@@ -476,6 +476,14 @@ CalculatorAction shiftedActionForKey(CalculatorPrefix prefix, char keyPressed) {
           return CalculatorAction::HourMinuteSecondToHour;
         case 'v':
           return CalculatorAction::RandomValue;
+        case '.':
+          return CalculatorAction::BitwiseAnd;
+        case 'x':
+          return CalculatorAction::BitwiseOr;
+        case 'y':
+          return CalculatorAction::BitwiseXor;
+        case 'z':
+          return CalculatorAction::BitwiseNot;
         default:
           return CalculatorAction::None;
       }

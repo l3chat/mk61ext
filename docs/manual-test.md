@@ -91,6 +91,8 @@ The current provisional MK-61-inspired run-mode subset is:
 - `p`, then `3`: `H->H.M.S`
 - `p`, then `u`: `H.M.S->H`
 - `p`, then `v`: `RND`
+- `p`, then `.` / `x` / `y`: `AND` / `OR` / `XOR` on signed 32-bit whole numbers
+- `p`, then `z`: `NOT` on a signed 32-bit whole number
 - `c`: clear all
 - `a`: backlight brighter
 - `b`: backlight dimmer
@@ -195,6 +197,16 @@ This verifies the newly implemented scientific and utility operations.
 37. Press `c`, then `p`, then `v`.
 38. Confirm `X` is greater than or equal to `0`.
 39. Confirm `X` is less than `1`.
+40. Press `c`, then `6`, then `v`, then `3`, then `p`, then `.`.
+41. Confirm `X` becomes `2`.
+42. Press `c`, then `6`, then `v`, then `3`, then `p`, then `x`.
+43. Confirm `X` becomes `7`.
+44. Press `c`, then `6`, then `v`, then `3`, then `p`, then `y`.
+45. Confirm `X` becomes `5`.
+46. Press `c`, then `6`, then `p`, then `z`.
+47. Confirm `X` becomes `-7` using signed 32-bit `NOT`.
+48. Press `c`, then `1`, then `.`, then `5`, then `v`, then `3`, then `p`, then `.`.
+49. Confirm the calculator shows `domain error` because bitwise ops currently require whole-number inputs in signed 32-bit range.
 
 ## Entry Stack-Lift Check
 
