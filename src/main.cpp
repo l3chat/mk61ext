@@ -126,7 +126,6 @@ constexpr uint8_t kEepromSclPin = 15;
 constexpr uint32_t kEepromClockHz = 400000;
 constexpr uint16_t kDisplayContrast = 20;
 constexpr uint16_t kLoopDelayMs = 100;
-constexpr int kMinimumBrightness = 1;
 constexpr int kDisplayWidth = 128;
 constexpr int kStatusBarHeight = 8;
 constexpr int kStackFirstY = 10;
@@ -193,9 +192,7 @@ HelpState helpState;
 PendingRegisterOperation pendingRegisterOperation = PendingRegisterOperation::None;
 
 StoredSettings defaultStoredSettings() {
-  StoredSettings settings{};
-  settings.brightness = kMinimumBrightness;
-  return settings;
+  return StoredSettings{};
 }
 
 const char *angleModeShortName(CalculatorAngleMode mode) {
@@ -593,7 +590,6 @@ void formatXDisplayToFit(char *buffer, size_t bufferSize, int maxPixelWidth) {
 }
 
 void setupDisplay() {
-  brightness = kMinimumBrightness;
   display.begin();
   display.setPowerSave(0);
   display.setFlipMode(1);
