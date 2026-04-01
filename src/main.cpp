@@ -590,6 +590,10 @@ void formatXDisplayToFit(char *buffer, size_t bufferSize, int maxPixelWidth) {
 }
 
 void setupDisplay() {
+  brightness = 0;
+  pinMode(kBacklightPin, OUTPUT);
+  applyBrightness();
+
   display.begin();
   display.setPowerSave(0);
   display.setFlipMode(1);
@@ -599,10 +603,6 @@ void setupDisplay() {
   display.setDrawColor(1);
   display.setFontPosTop();
   display.setFontDirection(0);
-
-  brightness = 0;
-  pinMode(kBacklightPin, OUTPUT);
-  applyBrightness();
 }
 
 void setupEeprom() {
