@@ -91,6 +91,8 @@ public:
   bool apply(CalculatorAction action);
   bool recallRegister(uint8_t index);
   bool storeRegister(uint8_t index);
+  bool recallIndirectRegister(uint8_t pointerIndex);
+  bool storeIndirectRegister(uint8_t pointerIndex);
   void seedRandom(uint32_t seed);
 
   CalculatorStack stack() const;
@@ -143,6 +145,8 @@ private:
   bool performBinaryOperation(CalculatorAction action);
 
   bool isValidRegisterIndex(uint8_t index) const;
+  bool prepareIndirectRegisterAccess(uint8_t pointerIndex, uint8_t &targetIndex);
+  void finishIndirectRegisterAccess(uint8_t pointerIndex);
   void rememberLastX();
   void clearStackState();
   void startEntry();

@@ -13,6 +13,14 @@ constexpr CalculatorValue kMinuteLimit = 60.0;
 constexpr CalculatorValue kSecondLimit = 60.0;
 constexpr CalculatorValue kNormalizationEpsilon = 1e-9;
 
+bool isIndirectPostDecrementRegister(uint8_t index) {
+  return index <= 3;
+}
+
+bool isIndirectPreIncrementRegister(uint8_t index) {
+  return (index >= 4) && (index <= 6);
+}
+
 bool coerceToBitwiseUint32(CalculatorValue value, uint32_t &result) {
   if (!std::isfinite(value)) {
     return false;
@@ -29,6 +37,21 @@ bool coerceToBitwiseUint32(CalculatorValue value, uint32_t &result) {
   }
 
   result = static_cast<uint32_t>(rounded);
+  return true;
+}
+
+bool coerceToIndirectRegisterIndex(CalculatorValue value, uint8_t &result) {
+  if (!std::isfinite(value)) {
+    return false;
+  }
+
+  CalculatorValue wrapped =
+      std::fmod(std::trunc(value), static_cast<CalculatorValue>(RpnCalculator::kRegisterCount));
+  if (wrapped < 0.0) {
+    wrapped += static_cast<CalculatorValue>(RpnCalculator::kRegisterCount);
+  }
+
+  result = static_cast<uint8_t>(wrapped);
   return true;
 }
 
@@ -72,6 +95,43 @@ bool RpnCalculator::storeRegister(uint8_t index) {
 
   finishEntry();
   registers_[index] = stack_[0];
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::recallIndirectRegister(uint8_t pointerIndex) {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+
+  uint8_t targetIndex = 0;
+  if (!prepareIndirectRegisterAccess(pointerIndex, targetIndex)) {
+    return false;
+  }
+
+  rememberLastX();
+  stack_[0] = registers_[targetIndex];
+  finishIndirectRegisterAccess(pointerIndex);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::storeIndirectRegister(uint8_t pointerIndex) {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+
+  uint8_t targetIndex = 0;
+  if (!prepareIndirectRegisterAccess(pointerIndex, targetIndex)) {
+    return false;
+  }
+
+  registers_[targetIndex] = stack_[0];
+  finishIndirectRegisterAccess(pointerIndex);
   stackLiftEnabled_ = true;
   return true;
 }
@@ -939,6 +999,32 @@ bool RpnCalculator::performBinaryOperation(CalculatorAction action) {
 
 bool RpnCalculator::isValidRegisterIndex(uint8_t index) const {
   return index < registers_.size();
+}
+
+bool RpnCalculator::prepareIndirectRegisterAccess(uint8_t pointerIndex, uint8_t &targetIndex) {
+  if (!isValidRegisterIndex(pointerIndex)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  CalculatorValue pointerValue = registers_[pointerIndex];
+  if (isIndirectPreIncrementRegister(pointerIndex)) {
+    pointerValue += 1.0;
+    registers_[pointerIndex] = pointerValue;
+  }
+
+  if (!coerceToIndirectRegisterIndex(pointerValue, targetIndex)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  return true;
+}
+
+void RpnCalculator::finishIndirectRegisterAccess(uint8_t pointerIndex) {
+  if (isIndirectPostDecrementRegister(pointerIndex)) {
+    registers_[pointerIndex] -= 1.0;
+  }
 }
 
 void RpnCalculator::rememberLastX() {

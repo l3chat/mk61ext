@@ -153,8 +153,10 @@ struct HelpState {
 
 enum class PendingRegisterOperation : uint8_t {
   None,
-  Recall,
-  Store,
+  DirectRecall,
+  DirectStore,
+  IndirectRecall,
+  IndirectStore,
 };
 
 Keypad keypad(makeKeymap(kKeyMap), kRowPins, kColumnPins, kRowCount, kColumnCount);
@@ -217,10 +219,14 @@ void armPendingRegisterOperation(PendingRegisterOperation operation) {
 
 const char *pendingRegisterOperationName() {
   switch (pendingRegisterOperation) {
-    case PendingRegisterOperation::Recall:
+    case PendingRegisterOperation::DirectRecall:
       return "RCL";
-    case PendingRegisterOperation::Store:
+    case PendingRegisterOperation::DirectStore:
       return "STO";
+    case PendingRegisterOperation::IndirectRecall:
+      return "RCLI";
+    case PendingRegisterOperation::IndirectStore:
+      return "STOI";
     case PendingRegisterOperation::None:
       return "";
   }
@@ -286,13 +292,25 @@ void handleHelpPressedKey(char keyPressed) {
 }
 
 bool handleRegisterOperationKey(char keyPressed) {
-  if ((activeCalculatorPrefix() == CalculatorPrefix::None) && (keyPressed == 'q')) {
-    armPendingRegisterOperation(PendingRegisterOperation::Recall);
+  const CalculatorPrefix prefix = activeCalculatorPrefix();
+
+  if ((prefix == CalculatorPrefix::None) && (keyPressed == 'q')) {
+    armPendingRegisterOperation(PendingRegisterOperation::DirectRecall);
     return true;
   }
 
-  if ((activeCalculatorPrefix() == CalculatorPrefix::None) && (keyPressed == 'r')) {
-    armPendingRegisterOperation(PendingRegisterOperation::Store);
+  if ((prefix == CalculatorPrefix::None) && (keyPressed == 'r')) {
+    armPendingRegisterOperation(PendingRegisterOperation::DirectStore);
+    return true;
+  }
+
+  if ((prefix == CalculatorPrefix::K) && (keyPressed == 'q')) {
+    armPendingRegisterOperation(PendingRegisterOperation::IndirectRecall);
+    return true;
+  }
+
+  if ((prefix == CalculatorPrefix::K) && (keyPressed == 'r')) {
+    armPendingRegisterOperation(PendingRegisterOperation::IndirectStore);
     return true;
   }
 
@@ -309,11 +327,17 @@ bool handleRegisterOperationKey(char keyPressed) {
   }
 
   switch (operation) {
-    case PendingRegisterOperation::Recall:
+    case PendingRegisterOperation::DirectRecall:
       (void)calculator.recallRegister(registerIndex);
       return true;
-    case PendingRegisterOperation::Store:
+    case PendingRegisterOperation::DirectStore:
       (void)calculator.storeRegister(registerIndex);
+      return true;
+    case PendingRegisterOperation::IndirectRecall:
+      (void)calculator.recallIndirectRegister(registerIndex);
+      return true;
+    case PendingRegisterOperation::IndirectStore:
+      (void)calculator.storeIndirectRegister(registerIndex);
       return true;
     case PendingRegisterOperation::None:
       return false;

@@ -95,12 +95,15 @@ The current provisional MK-61-inspired run-mode subset is:
 - `p`, then `z`: `NOT` on an unsigned 32-bit whole number
 - `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `RCL` register `0`-`e`
 - `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `STO` register `0`-`e`
+- `p`, then `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `RCLI` through a pointer register
+- `p`, then `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `STOI` through a pointer register
 - `a`: backlight brighter
 - `b`: backlight dimmer
 - `e`: toggle help mode
 
 The calculator core stores stack values as 64-bit floating point numbers. The current screen now tries to show up to 15 significant digits while still fitting each value into the 128x64 stack layout.
 Trigonometric functions currently use radians until an angle-mode feature exists.
+Indirect register access currently uses the whole-number part of the pointer register wrapped across registers `0`-`e`, with pointer registers `4`-`6` pre-incremented and `0`-`3` post-decremented.
 
 1. Press `2`, then `v`, then `3`, then `+`.
 2. Confirm the `X` register shows `5`.
@@ -222,6 +225,36 @@ This verifies the newly implemented scientific and utility operations.
 63. Confirm `X` changes to `1`, showing the stored register value is independent from the live stack.
 64. Press `q`, then `v`.
 65. Confirm `X` returns to `88` from register `e`.
+66. Press `6`, then `6`, then `r`, then `6`.
+67. Confirm `X` stays `66` after storing into register `6`.
+68. Press `6`, then `r`, then `7`.
+69. Confirm `X` stays `6` after storing the pointer value into register `7`.
+70. Press `p`, then `q`, then `7`.
+71. Confirm `X` becomes `66`, showing indirect recall through register `7`.
+72. Press `q`, then `7`.
+73. Confirm `X` still shows `6`, showing pointer register `7` stays unchanged.
+74. Press `4`, then `4`, then `r`, then `6`.
+75. Confirm `X` stays `44` after storing into register `6`.
+76. Press `5`, then `r`, then `4`.
+77. Confirm `X` stays `5` after storing the pointer value into register `4`.
+78. Press `p`, then `q`, then `4`.
+79. Confirm `X` becomes `44`, showing pointer register `4` pre-increments before use.
+80. Press `q`, then `4`.
+81. Confirm `X` becomes `6`, showing pointer register `4` was incremented.
+82. Press `5`, then `5`, then `r`, then `5`.
+83. Confirm `X` stays `55` after storing into register `5`.
+84. Press `5`, then `r`, then `3`.
+85. Confirm `X` stays `5` after storing the pointer value into register `3`.
+86. Press `p`, then `q`, then `3`.
+87. Confirm `X` becomes `55`, showing pointer register `3` uses its current value before changing.
+88. Press `q`, then `3`.
+89. Confirm `X` becomes `4`, showing pointer register `3` post-decrements after use.
+90. Press `1`, then `2`, then `3`, then `r`, then `5`.
+91. Confirm `X` stays `123` after storing into register `5`.
+92. Press `2`, then `0`, then `.`, then `9`, then `r`, then `8`.
+93. Confirm `X` stays `20.9` after storing the indirect pointer value into register `8`.
+94. Press `p`, then `q`, then `8`.
+95. Confirm `X` becomes `123`, showing indirect recall truncates the pointer value and wraps it across registers `0`-`e`.
 
 ## Entry Stack-Lift Check
 
@@ -273,6 +306,6 @@ This verifies the recent keypad timing fix.
 - The active runtime subset now uses the bottom six rows of the matrix for calculator keys and begins to follow the planned MK-61 prefix model with `k` = `F` and `p` = `K`.
 - The `a` and `b` keys now control backlight brighter/dimmer again, `e` toggles the on-device help mode, and `c` is currently free for future extension work. While help mode is active, key presses show descriptions instead of performing their normal actions.
 - The currently wired `F`-layer now includes trig, inverse trig, powers, exponentials, logarithms, `LAST X`, and the earlier `R↓`, `sqrt`, `1/x`, and `pi` functions.
-- The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, `sign`, the hour/minute conversion functions, and `RND`.
+- The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, `sign`, the hour/minute conversion functions, `RND`, and the first indirect-register commands `RCLI` and `STOI`.
 - The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left, optionally prefixed by `F` or `K` when a one-shot prefix is armed, and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
 - The stack area now uses four uniform text rows without frames or separator lines.

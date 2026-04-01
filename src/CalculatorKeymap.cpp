@@ -317,10 +317,10 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Planned loop control: decrement register 3 and branch while it stays non-zero.";
   }
   if (labelEquals(label, "RCLI")) {
-    return "Planned indirect register recall through a register-selected address.";
+    return "Arm indirect recall. Pick a pointer register with 0-9 or . x y z v; 4-6 pre-increment and 0-3 post-decrement.";
   }
   if (labelEquals(label, "STOI")) {
-    return "Planned indirect register store through a register-selected address.";
+    return "Arm indirect store. Pick a pointer register with 0-9 or . x y z v; 4-6 pre-increment and 0-3 post-decrement.";
   }
   if (labelEquals(label, "JPI")) {
     return "Planned indirect jump using an address held in a register.";

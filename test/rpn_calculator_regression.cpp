@@ -193,6 +193,81 @@ void testRegisterValidation() {
               "invalid register recalls should trigger domain error");
 }
 
+void testIndirectRegisterAccess() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "66");
+  expectTrue(calculator.storeRegister(6), "store register 6 should succeed");
+  clearAndEnter(calculator, "6");
+  expectTrue(calculator.storeRegister(7), "store register 7 should succeed");
+
+  clearAndEnter(calculator, "0");
+  expectTrue(calculator.recallIndirectRegister(7), "indirect recall through register 7 should succeed");
+  expectEqual(calculator.stack().x, 66.0, "indirect recall through register 7 should load register 6");
+  expectTrue(calculator.recallRegister(7), "direct recall of register 7 should succeed");
+  expectEqual(calculator.stack().x, 6.0, "register 7 should stay unchanged during indirect recall");
+
+  clearAndEnter(calculator, "99");
+  expectTrue(calculator.storeIndirectRegister(7), "indirect store through register 7 should succeed");
+  expectTrue(calculator.recallRegister(6), "direct recall of register 6 should succeed");
+  expectEqual(calculator.stack().x, 99.0, "indirect store through register 7 should update register 6");
+}
+
+void testIndirectPointerAutoModification() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "44");
+  expectTrue(calculator.storeRegister(6), "store register 6 should succeed");
+  clearAndEnter(calculator, "5");
+  expectTrue(calculator.storeRegister(4), "store register 4 should succeed");
+
+  clearAndEnter(calculator, "0");
+  expectTrue(calculator.recallIndirectRegister(4), "indirect recall through register 4 should succeed");
+  expectEqual(calculator.stack().x, 44.0, "register 4 should pre-increment and recall register 6");
+  expectTrue(calculator.recallRegister(4), "direct recall of register 4 should succeed");
+  expectEqual(calculator.stack().x, 6.0, "register 4 should be incremented to 6 after indirect recall");
+
+  clearAndEnter(calculator, "55");
+  expectTrue(calculator.storeRegister(5), "store register 5 should succeed");
+  clearAndEnter(calculator, "5");
+  expectTrue(calculator.storeRegister(3), "store register 3 should succeed");
+
+  clearAndEnter(calculator, "0");
+  expectTrue(calculator.recallIndirectRegister(3), "indirect recall through register 3 should succeed");
+  expectEqual(calculator.stack().x, 55.0, "register 3 should recall register 5 before post-decrement");
+  expectTrue(calculator.recallRegister(3), "direct recall of register 3 should succeed");
+  expectEqual(calculator.stack().x, 4.0, "register 3 should be decremented to 4 after indirect recall");
+}
+
+void testIndirectRegisterWrapping() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "123");
+  expectTrue(calculator.storeRegister(5), "store register 5 should succeed");
+  clearAndEnter(calculator, "20.9");
+  expectTrue(calculator.storeRegister(8), "store register 8 should succeed");
+
+  clearAndEnter(calculator, "0");
+  expectTrue(calculator.recallIndirectRegister(8), "indirect recall through register 8 should succeed");
+  expectEqual(calculator.stack().x, 123.0,
+              "indirect recall should truncate and wrap pointer values across registers 0-e");
+}
+
+void testIndirectRegisterValidation() {
+  RpnCalculator calculator;
+
+  expectFalse(calculator.recallIndirectRegister(RpnCalculator::kRegisterCount),
+              "indirect recall should reject out-of-range pointer register indexes");
+  expectError(calculator, CalculatorError::DomainError,
+              "invalid indirect recalls should trigger domain error");
+
+  calculator.reset();
+  expectFalse(calculator.storeIndirectRegister(RpnCalculator::kRegisterCount),
+              "indirect store should reject out-of-range pointer register indexes");
+  expectError(calculator, CalculatorError::DomainError,
+              "invalid indirect stores should trigger domain error");
+}
+
 }  // namespace
 
 int main() {
@@ -201,6 +276,10 @@ int main() {
   testBitwiseValidation();
   testRegisterStoreRecall();
   testRegisterValidation();
+  testIndirectRegisterAccess();
+  testIndirectPointerAutoModification();
+  testIndirectRegisterWrapping();
+  testIndirectRegisterValidation();
   std::cout << "RpnCalculator regression tests passed.\n";
   return 0;
 }
