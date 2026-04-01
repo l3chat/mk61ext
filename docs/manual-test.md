@@ -219,42 +219,46 @@ This verifies the newly implemented scientific and utility operations.
 57. Confirm `X` stays `42` after storing into register `5`.
 58. Press `q`, then `5`.
 59. Confirm `X` returns to `42` from register `5`.
-60. Press `8`, then `8`, then `r`, then `v`.
-61. Confirm `X` stays `88` after storing into register `e`.
-62. Press `1`.
-63. Confirm `X` changes to `1`, showing the stored register value is independent from the live stack.
-64. Press `q`, then `v`.
-65. Confirm `X` returns to `88` from register `e`.
-66. Press `6`, then `6`, then `r`, then `6`.
-67. Confirm `X` stays `66` after storing into register `6`.
-68. Press `6`, then `r`, then `7`.
-69. Confirm `X` stays `6` after storing the pointer value into register `7`.
-70. Press `p`, then `q`, then `7`.
-71. Confirm `X` becomes `66`, showing indirect recall through register `7`.
-72. Press `q`, then `7`.
-73. Confirm `X` still shows `6`, showing pointer register `7` stays unchanged.
-74. Press `4`, then `4`, then `r`, then `6`.
-75. Confirm `X` stays `44` after storing into register `6`.
-76. Press `5`, then `r`, then `4`.
-77. Confirm `X` stays `5` after storing the pointer value into register `4`.
-78. Press `p`, then `q`, then `4`.
-79. Confirm `X` becomes `44`, showing pointer register `4` pre-increments before use.
-80. Press `q`, then `4`.
-81. Confirm `X` becomes `6`, showing pointer register `4` was incremented.
-82. Press `5`, then `5`, then `r`, then `5`.
-83. Confirm `X` stays `55` after storing into register `5`.
-84. Press `5`, then `r`, then `3`.
-85. Confirm `X` stays `5` after storing the pointer value into register `3`.
-86. Press `p`, then `q`, then `3`.
-87. Confirm `X` becomes `55`, showing pointer register `3` uses its current value before changing.
-88. Press `q`, then `3`.
-89. Confirm `X` becomes `4`, showing pointer register `3` post-decrements after use.
-90. Press `1`, then `2`, then `3`, then `r`, then `5`.
-91. Confirm `X` stays `123` after storing into register `5`.
-92. Press `2`, then `0`, then `.`, then `9`, then `r`, then `8`.
-93. Confirm `X` stays `20.9` after storing the indirect pointer value into register `8`.
-94. Press `p`, then `q`, then `8`.
-95. Confirm `X` becomes `123`, showing indirect recall truncates the pointer value and wraps it across registers `0`-`e`.
+60. Confirm `Y` keeps the prior `0`, showing direct recall lifts the stack instead of overwriting it.
+61. Press `8`, then `8`, then `r`, then `v`.
+62. Confirm `X` stays `88` after storing into register `e`.
+63. Press `1`.
+64. Confirm `X` changes to `1`, showing the stored register value is independent from the live stack.
+65. Press `q`, then `v`.
+66. Confirm `X` returns to `88` from register `e`.
+67. Confirm `Y` becomes `1`, showing direct recall pushes the prior `X` value down the stack.
+68. Press `6`, then `6`, then `r`, then `6`.
+69. Confirm `X` stays `66` after storing into register `6`.
+70. Press `6`, then `r`, then `7`.
+71. Confirm `X` stays `6` after storing the pointer value into register `7`.
+72. Press `p`, then `q`, then `7`.
+73. Confirm `X` becomes `66`, showing indirect recall through register `7`.
+74. Confirm `Y` keeps the prior `0`, showing indirect recall also lifts the stack.
+75. Press `q`, then `7`.
+76. Confirm `X` still shows `6`, showing pointer register `7` stays unchanged.
+77. Confirm `Y` now shows `66`, showing direct recall pushes the prior `X` value down the stack.
+78. Press `4`, then `4`, then `r`, then `6`.
+79. Confirm `X` stays `44` after storing into register `6`.
+80. Press `5`, then `r`, then `4`.
+81. Confirm `X` stays `5` after storing the pointer value into register `4`.
+82. Press `p`, then `q`, then `4`.
+83. Confirm `X` becomes `44`, showing pointer register `4` pre-increments before use.
+84. Press `q`, then `4`.
+85. Confirm `X` becomes `6`, showing pointer register `4` was incremented.
+86. Press `5`, then `5`, then `r`, then `5`.
+87. Confirm `X` stays `55` after storing into register `5`.
+88. Press `5`, then `r`, then `3`.
+89. Confirm `X` stays `5` after storing the pointer value into register `3`.
+90. Press `p`, then `q`, then `3`.
+91. Confirm `X` becomes `55`, showing pointer register `3` uses its current value before changing.
+92. Press `q`, then `3`.
+93. Confirm `X` becomes `4`, showing pointer register `3` post-decrements after use.
+94. Press `1`, then `2`, then `3`, then `r`, then `5`.
+95. Confirm `X` stays `123` after storing into register `5`.
+96. Press `2`, then `0`, then `.`, then `9`, then `r`, then `8`.
+97. Confirm `X` stays `20.9` after storing the indirect pointer value into register `8`.
+98. Press `p`, then `q`, then `8`.
+99. Confirm `X` becomes `123`, showing indirect recall truncates the pointer value and wraps it across registers `0`-`e`.
 
 ## Entry Stack-Lift Check
 

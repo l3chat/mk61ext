@@ -12,6 +12,20 @@ In the VS Code integrated terminal for this workspace, `pio` is on `PATH`, so us
 pio run
 ```
 
+## Regression Test
+
+Run the host-side regression directly with:
+
+```bash
+bash scripts/run_regression.sh
+```
+
+Or run the same regression through PlatformIO with:
+
+```bash
+pio run -t regression
+```
+
 ## Flash
 
 ```bash

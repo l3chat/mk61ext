@@ -1,7 +1,10 @@
 #include "RpnCalculator.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <cstdio>
+#include <cstring>
 #include <iostream>
 
 namespace {
@@ -40,6 +43,55 @@ void expectError(const RpnCalculator &calculator, CalculatorError expected, cons
 
 void press(RpnCalculator &calculator, CalculatorAction action, const char *message) {
   expectTrue(calculator.apply(action), message);
+}
+
+void formatVirtualStackValue(CalculatorValue value, char *buffer, size_t bufferSize) {
+  const CalculatorValue normalizedValue = (std::fabs(value) < 1e-12) ? 0.0 : value;
+  std::snprintf(buffer, bufferSize, "%.15g", normalizedValue);
+}
+
+const char *virtualModeName(const RpnCalculator &calculator) {
+  if (calculator.hasError()) {
+    return "ERR";
+  }
+
+  if (calculator.isEnteringExponent()) {
+    return "EEX";
+  }
+
+  if (calculator.isEntering()) {
+    return "ENT";
+  }
+
+  return "RUN";
+}
+
+void expectVirtualDisplay(const RpnCalculator &calculator,
+                          const char *expectedMode,
+                          const char *expectedLabel,
+                          const char *expectedX,
+                          const char *message) {
+  const char *actualMode = virtualModeName(calculator);
+  if (std::strcmp(actualMode, expectedMode) != 0) {
+    std::cerr << "FAIL: " << message << " (expected mode " << expectedMode << ", got " << actualMode
+              << ")\n";
+    std::exit(1);
+  }
+
+  const char *actualLabel = calculator.isEntering() ? "X>" : "X:";
+  if (std::strcmp(actualLabel, expectedLabel) != 0) {
+    std::cerr << "FAIL: " << message << " (expected label " << expectedLabel << ", got " << actualLabel
+              << ")\n";
+    std::exit(1);
+  }
+
+  char actualX[32];
+  formatVirtualStackValue(calculator.stack().x, actualX, sizeof(actualX));
+  if (std::strcmp(actualX, expectedX) != 0) {
+    std::cerr << "FAIL: " << message << " (expected X text " << expectedX << ", got " << actualX
+              << ")\n";
+    std::exit(1);
+  }
 }
 
 void enterText(RpnCalculator &calculator, const char *text) {
@@ -167,6 +219,7 @@ void testRegisterStoreRecall() {
   clearAndEnter(calculator, "0");
   expectTrue(calculator.recallRegister(5), "recall register 5 should succeed");
   expectEqual(calculator.stack().x, 42.0, "recalling register 5 should restore 42");
+  expectEqual(calculator.stack().y, 0.0, "recalling register 5 should push the prior X value into Y");
 
   clearAndEnter(calculator, "88");
   expectTrue(calculator.storeRegister(14), "store register e should succeed");
@@ -175,6 +228,7 @@ void testRegisterStoreRecall() {
   expectEqual(calculator.stack().x, 0.0, "clear all should clear X");
   expectTrue(calculator.recallRegister(14), "recall register e should succeed after clear all");
   expectEqual(calculator.stack().x, 88.0, "clear all should not erase stored registers");
+  expectEqual(calculator.stack().y, 0.0, "recalling register e should push the prior X value into Y");
 }
 
 void testRegisterValidation() {
@@ -204,8 +258,11 @@ void testIndirectRegisterAccess() {
   clearAndEnter(calculator, "0");
   expectTrue(calculator.recallIndirectRegister(7), "indirect recall through register 7 should succeed");
   expectEqual(calculator.stack().x, 66.0, "indirect recall through register 7 should load register 6");
+  expectEqual(calculator.stack().y, 0.0,
+              "indirect recall through register 7 should push the prior X value into Y");
   expectTrue(calculator.recallRegister(7), "direct recall of register 7 should succeed");
   expectEqual(calculator.stack().x, 6.0, "register 7 should stay unchanged during indirect recall");
+  expectEqual(calculator.stack().y, 66.0, "direct recall should push the prior X value into Y");
 
   clearAndEnter(calculator, "99");
   expectTrue(calculator.storeIndirectRegister(7), "indirect store through register 7 should succeed");
@@ -224,8 +281,11 @@ void testIndirectPointerAutoModification() {
   clearAndEnter(calculator, "0");
   expectTrue(calculator.recallIndirectRegister(4), "indirect recall through register 4 should succeed");
   expectEqual(calculator.stack().x, 44.0, "register 4 should pre-increment and recall register 6");
+  expectEqual(calculator.stack().y, 0.0,
+              "indirect recall through register 4 should push the prior X value into Y");
   expectTrue(calculator.recallRegister(4), "direct recall of register 4 should succeed");
   expectEqual(calculator.stack().x, 6.0, "register 4 should be incremented to 6 after indirect recall");
+  expectEqual(calculator.stack().y, 44.0, "direct recall should push the prior X value into Y");
 
   clearAndEnter(calculator, "55");
   expectTrue(calculator.storeRegister(5), "store register 5 should succeed");
@@ -235,8 +295,11 @@ void testIndirectPointerAutoModification() {
   clearAndEnter(calculator, "0");
   expectTrue(calculator.recallIndirectRegister(3), "indirect recall through register 3 should succeed");
   expectEqual(calculator.stack().x, 55.0, "register 3 should recall register 5 before post-decrement");
+  expectEqual(calculator.stack().y, 0.0,
+              "indirect recall through register 3 should push the prior X value into Y");
   expectTrue(calculator.recallRegister(3), "direct recall of register 3 should succeed");
   expectEqual(calculator.stack().x, 4.0, "register 3 should be decremented to 4 after indirect recall");
+  expectEqual(calculator.stack().y, 55.0, "direct recall should push the prior X value into Y");
 }
 
 void testIndirectRegisterWrapping() {
@@ -251,6 +314,8 @@ void testIndirectRegisterWrapping() {
   expectTrue(calculator.recallIndirectRegister(8), "indirect recall through register 8 should succeed");
   expectEqual(calculator.stack().x, 123.0,
               "indirect recall should truncate and wrap pointer values across registers 0-e");
+  expectEqual(calculator.stack().y, 0.0,
+              "indirect recall through register 8 should push the prior X value into Y");
 }
 
 void testIndirectRegisterValidation() {
@@ -268,6 +333,72 @@ void testIndirectRegisterValidation() {
               "invalid indirect stores should trigger domain error");
 }
 
+void testDisplayFormattingDuringExponentEntry() {
+  RpnCalculator calculator;
+
+  press(calculator, CalculatorAction::Digit1, "failed to enter leading 1");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1", "display after entering 1 should show X> 1");
+
+  press(calculator, CalculatorAction::DecimalPoint, "failed to enter decimal point");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1",
+                       "display after entering decimal point should still show X> 1");
+
+  press(calculator, CalculatorAction::Digit2, "failed to enter digit 2");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.2", "display after entering 2 should show X> 1.2");
+
+  press(calculator, CalculatorAction::Digit3, "failed to enter digit 3");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.23",
+                       "display after entering 3 should show X> 1.23");
+
+  press(calculator, CalculatorAction::Digit4, "failed to enter digit 4");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.234",
+                       "display after entering 4 should show X> 1.234");
+
+  press(calculator, CalculatorAction::Digit5, "failed to enter digit 5");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.2345",
+                       "display after entering 5 should show X> 1.2345");
+
+  press(calculator, CalculatorAction::Digit6, "failed to enter digit 6");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.23456",
+                       "display after entering 6 should show X> 1.23456");
+
+  press(calculator, CalculatorAction::EnterExponent, "failed to enter exponent mode");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1.23456",
+                       "display after pressing EEX should still show the mantissa");
+
+  press(calculator, CalculatorAction::Digit1, "failed to enter exponent digit 1");
+  expectVirtualDisplay(calculator, "EEX", "X>", "12.3456",
+                       "display after entering exponent digit 1 should show X> 12.3456");
+
+  press(calculator, CalculatorAction::Digit2, "failed to enter exponent digit 2");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1234560000000",
+                       "display after entering exponent digit 2 should show X> 1234560000000");
+
+  press(calculator, CalculatorAction::Digit3, "failed to enter exponent digit 3");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1.23456e+123",
+                       "display after entering exponent digit 3 should show X> 1.23456e+123");
+}
+
+void testRecallPushesStack() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "5");
+  expectTrue(calculator.storeRegister(1), "store register 1 should succeed");
+
+  enterText(calculator, "3");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER for recall-push sequence");
+  enterText(calculator, "4");
+  press(calculator, CalculatorAction::Multiply, "failed to multiply for recall-push sequence");
+
+  expectEqual(calculator.stack().x, 12.0, "sequence should produce 12 in X before recall");
+  expectEqual(calculator.stack().y, 5.0, "sequence should leave 5 in Y before recall");
+
+  expectTrue(calculator.recallRegister(1), "recall register 1 should succeed in recall-push sequence");
+  expectEqual(calculator.stack().x, 5.0, "recall-push sequence should load register 1 into X");
+  expectEqual(calculator.stack().y, 12.0, "recall-push sequence should push the prior X value into Y");
+  expectEqual(calculator.stack().z, 5.0, "recall-push sequence should preserve the older Y value in Z");
+}
+
 }  // namespace
 
 int main() {
@@ -280,6 +411,8 @@ int main() {
   testIndirectPointerAutoModification();
   testIndirectRegisterWrapping();
   testIndirectRegisterValidation();
+  testDisplayFormattingDuringExponentEntry();
+  testRecallPushesStack();
   std::cout << "RpnCalculator regression tests passed.\n";
   return 0;
 }

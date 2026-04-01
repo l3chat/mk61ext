@@ -134,7 +134,7 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Run or stop a stored program.";
   }
   if (labelEquals(label, "RCL")) {
-    return "Arm direct register recall. Press 0-9, or use . x y z v for registers a-e.";
+    return "Arm direct register recall. Press 0-9, or use . x y z v for registers a-e. The recalled value lifts the stack into X.";
   }
   if (labelEquals(label, "STO")) {
     return "Arm direct register store. Press 0-9, or use . x y z v for registers a-e.";
@@ -317,7 +317,7 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Planned loop control: decrement register 3 and branch while it stays non-zero.";
   }
   if (labelEquals(label, "RCLI")) {
-    return "Arm indirect recall. Pick a pointer register with 0-9 or . x y z v; 4-6 pre-increment and 0-3 post-decrement.";
+    return "Arm indirect recall. Pick a pointer register with 0-9 or . x y z v; 4-6 pre-increment and 0-3 post-decrement. The recalled value lifts the stack into X.";
   }
   if (labelEquals(label, "STOI")) {
     return "Arm indirect store. Pick a pointer register with 0-9 or . x y z v; 4-6 pre-increment and 0-3 post-decrement.";

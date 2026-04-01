@@ -78,6 +78,7 @@ bool RpnCalculator::recallRegister(uint8_t index) {
 
   finishEntry();
   rememberLastX();
+  liftStack();
   stack_[0] = registers_[index];
   stackLiftEnabled_ = true;
   return true;
@@ -112,6 +113,7 @@ bool RpnCalculator::recallIndirectRegister(uint8_t pointerIndex) {
   }
 
   rememberLastX();
+  liftStack();
   stack_[0] = registers_[targetIndex];
   finishIndirectRegisterAccess(pointerIndex);
   stackLiftEnabled_ = true;
