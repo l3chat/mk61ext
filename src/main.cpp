@@ -160,7 +160,7 @@ struct StoredSettings {
   uint8_t angleMode = static_cast<uint8_t>(CalculatorAngleMode::Radians);
   uint8_t showStackLabels = 1;
   uint8_t reserved0 = 0;
-  uint16_t brightness = 256;
+  uint16_t brightness = 0;
   uint8_t reserved[8] = {};
 };
 
@@ -184,7 +184,7 @@ U8G2_ST7565_ERC12864_F_4W_SW_SPI display(
     kDisplayDataCommandPin,
     kDisplayResetPin);
 
-int brightness = 256;
+int brightness = 0;
 bool showStackLevelNames = true;
 bool eepromReady = false;
 KeypadDiagnostics keypadDiagnostics;
@@ -600,6 +600,7 @@ void setupDisplay() {
   display.setFontPosTop();
   display.setFontDirection(0);
 
+  brightness = 0;
   pinMode(kBacklightPin, OUTPUT);
   applyBrightness();
 }
