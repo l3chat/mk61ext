@@ -2,6 +2,7 @@
 #define RPN_CALCULATOR_H
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 
@@ -96,6 +97,7 @@ public:
   void seedRandom(uint32_t seed);
 
   CalculatorStack stack() const;
+  void formatXForDisplay(char *buffer, size_t bufferSize, int precision) const;
   bool isEntering() const { return entering_; }
   bool isEnteringExponent() const { return enteringExponent_; }
   bool hasError() const { return error_ != CalculatorError::None; }
@@ -162,6 +164,8 @@ private:
   bool decimalMode_ = false;
   bool enteringExponent_ = false;
   bool stackLiftEnabled_ = false;
+  bool exponentDigitsEntered_ = false;
+  bool exponentMantissaHasTrailingDecimal_ = false;
   CalculatorValue decimalScale_ = 0.1;
   CalculatorValue exponentMantissa_ = 0.0;
   CalculatorValue lastX_ = 0.0;

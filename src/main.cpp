@@ -436,15 +436,31 @@ void formatStackValueToFit(CalculatorValue value,
   formatStackValue(value, buffer, bufferSize, 1);
 }
 
+void drawStackTextLine(int y, const char *label, const char *text) {
+  display.setFont(u8g2_font_6x10_mr);
+  display.drawStr(0, y, label);
+  drawRightAlignedText(kDisplayWidth - 1, y, text);
+}
+
 void drawStackLine(int y, const char *label, CalculatorValue value) {
   char valueBuffer[32];
 
   display.setFont(u8g2_font_6x10_mr);
-  display.drawStr(0, y, label);
   const int labelWidth = display.getStrWidth(label);
   const int maxValueWidth = kDisplayWidth - labelWidth - kStackValueMinGap;
   formatStackValueToFit(value, valueBuffer, sizeof(valueBuffer), maxValueWidth);
-  drawRightAlignedText(kDisplayWidth - 1, y, valueBuffer);
+  drawStackTextLine(y, label, valueBuffer);
+}
+
+void formatXDisplayToFit(char *buffer, size_t bufferSize, int maxPixelWidth) {
+  for (int precision = kStackValueMaxPrecision; precision >= 1; --precision) {
+    calculator.formatXForDisplay(buffer, bufferSize, precision);
+    if (display.getStrWidth(buffer) <= maxPixelWidth) {
+      return;
+    }
+  }
+
+  calculator.formatXForDisplay(buffer, bufferSize, 1);
 }
 
 void setupDisplay() {
@@ -649,13 +665,19 @@ void drawHelpScreen() {
 
 void drawCalculatorScreen() {
   const CalculatorStack stack = calculator.stack();
+  char xBuffer[32];
 
   drawStatusBar();
 
   drawStackLine(kStackFirstY + (0 * kStackRowHeight), "T:", stack.t);
   drawStackLine(kStackFirstY + (1 * kStackRowHeight), "Z:", stack.z);
   drawStackLine(kStackFirstY + (2 * kStackRowHeight), "Y:", stack.y);
-  drawStackLine(kStackFirstY + (3 * kStackRowHeight), calculator.isEntering() ? "X>" : "X:", stack.x);
+  display.setFont(u8g2_font_6x10_mr);
+  const char *xLabel = calculator.isEntering() ? "X>" : "X:";
+  const int labelWidth = display.getStrWidth(xLabel);
+  const int maxValueWidth = kDisplayWidth - labelWidth - kStackValueMinGap;
+  formatXDisplayToFit(xBuffer, sizeof(xBuffer), maxValueWidth);
+  drawStackTextLine(kStackFirstY + (3 * kStackRowHeight), xLabel, xBuffer);
 }
 
 }  // namespace

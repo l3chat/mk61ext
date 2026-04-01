@@ -26,6 +26,22 @@ Or run the same regression through PlatformIO with:
 pio run -t regression
 ```
 
+## Trace A Sequence
+
+Trace a key sequence and print the stack after each key with:
+
+```bash
+bash scripts/trace_sequence.sh 5 STO 1 3 ENTER 4 '*' RCL 1
+```
+
+You can also feed the same kind of sequence through PlatformIO:
+
+```bash
+TRACE_SEQ="5 STO 1 3 ENTER 4 * RCL 1" pio run -t trace
+```
+
+The trace tool accepts raw keys like `q`, `r`, `v`, `x`, and `p`, plus a few convenience aliases such as `ENTER`, `EEX`, `CHS`, `RCL`, `STO`, `RCLI`, and `STOI`.
+
 ## Flash
 
 ```bash

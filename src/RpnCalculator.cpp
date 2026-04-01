@@ -1,6 +1,8 @@
 #include "RpnCalculator.h"
 
 #include <cmath>
+#include <cstdio>
+#include <cstring>
 
 namespace {
 
@@ -53,6 +55,40 @@ bool coerceToIndirectRegisterIndex(CalculatorValue value, uint8_t &result) {
 
   result = static_cast<uint8_t>(wrapped);
   return true;
+}
+
+void formatNormalizedValue(CalculatorValue value, char *buffer, size_t bufferSize, int precision) {
+  const CalculatorValue normalizedValue = (std::fabs(value) < 1e-12) ? 0.0 : value;
+  std::snprintf(buffer, bufferSize, "%.*g", precision, normalizedValue);
+}
+
+void appendDecimalPointIfNeeded(char *buffer, size_t bufferSize) {
+  char *exponentMarker = std::strchr(buffer, 'e');
+  if (exponentMarker == nullptr) {
+    exponentMarker = std::strchr(buffer, 'E');
+  }
+
+  char *decimalPoint = std::strchr(buffer, '.');
+  if ((decimalPoint != nullptr) && ((exponentMarker == nullptr) || (decimalPoint < exponentMarker))) {
+    return;
+  }
+
+  const size_t length = std::strlen(buffer);
+  if (length + 1 >= bufferSize) {
+    return;
+  }
+
+  if (exponentMarker == nullptr) {
+    buffer[length] = '.';
+    buffer[length + 1] = '\0';
+    return;
+  }
+
+  const size_t exponentOffset = static_cast<size_t>(exponentMarker - buffer);
+  std::memmove(buffer + exponentOffset + 1,
+               buffer + exponentOffset,
+               length - exponentOffset + 1);
+  buffer[exponentOffset] = '.';
 }
 
 }  // namespace
@@ -145,6 +181,8 @@ void RpnCalculator::clearStackState() {
   decimalScale_ = 0.1;
   enteringExponent_ = false;
   stackLiftEnabled_ = false;
+  exponentDigitsEntered_ = false;
+  exponentMantissaHasTrailingDecimal_ = false;
   exponentMantissa_ = 0.0;
   lastX_ = 0.0;
   exponentValue_ = 0;
@@ -275,6 +313,33 @@ CalculatorStack RpnCalculator::stack() const {
   };
 }
 
+void RpnCalculator::formatXForDisplay(char *buffer, size_t bufferSize, int precision) const {
+  if ((buffer == nullptr) || (bufferSize == 0)) {
+    return;
+  }
+
+  if (enteringExponent_) {
+    char mantissaBuffer[32];
+    formatNormalizedValue(exponentMantissa_, mantissaBuffer, sizeof(mantissaBuffer), precision);
+    if (exponentMantissaHasTrailingDecimal_) {
+      appendDecimalPointIfNeeded(mantissaBuffer, sizeof(mantissaBuffer));
+    }
+
+    const char *signText = (exponentSign_ < 0) ? "-" : "";
+    if (exponentDigitsEntered_) {
+      std::snprintf(buffer, bufferSize, "%se%s%d", mantissaBuffer, signText, exponentValue_);
+    } else {
+      std::snprintf(buffer, bufferSize, "%se%s", mantissaBuffer, signText);
+    }
+    return;
+  }
+
+  formatNormalizedValue(stack_[0], buffer, bufferSize, precision);
+  if (entering_ && decimalMode_ && (std::fabs(decimalScale_ - 0.1) < kNormalizationEpsilon)) {
+    appendDecimalPointIfNeeded(buffer, bufferSize);
+  }
+}
+
 const char *RpnCalculator::errorMessage() const {
   switch (error_) {
     case CalculatorError::None:
@@ -301,6 +366,7 @@ bool RpnCalculator::enterDigit(uint8_t digit) {
 
   if (enteringExponent_) {
     exponentValue_ = (exponentValue_ * 10) + digit;
+    exponentDigitsEntered_ = true;
     updateExponentValue();
     return true;
   }
@@ -353,12 +419,14 @@ bool RpnCalculator::pressEnterExponent() {
   }
 
   entering_ = true;
+  exponentMantissaHasTrailingDecimal_ = decimalMode_ && (std::fabs(decimalScale_ - 0.1) < kNormalizationEpsilon);
   decimalMode_ = false;
   enteringExponent_ = true;
   stackLiftEnabled_ = false;
   exponentMantissa_ = stack_[0];
   exponentValue_ = 0;
   exponentSign_ = 1;
+  exponentDigitsEntered_ = false;
   updateExponentValue();
   return true;
 }
@@ -1044,6 +1112,8 @@ void RpnCalculator::startEntry() {
   decimalScale_ = 0.1;
   enteringExponent_ = false;
   stackLiftEnabled_ = false;
+  exponentDigitsEntered_ = false;
+  exponentMantissaHasTrailingDecimal_ = false;
   exponentMantissa_ = 0.0;
   exponentValue_ = 0;
   exponentSign_ = 1;
@@ -1054,6 +1124,8 @@ void RpnCalculator::finishEntry() {
   decimalMode_ = false;
   decimalScale_ = 0.1;
   enteringExponent_ = false;
+  exponentDigitsEntered_ = false;
+  exponentMantissaHasTrailingDecimal_ = false;
   exponentMantissa_ = 0.0;
   exponentValue_ = 0;
   exponentSign_ = 1;

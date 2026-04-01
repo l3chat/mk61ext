@@ -45,11 +45,6 @@ void press(RpnCalculator &calculator, CalculatorAction action, const char *messa
   expectTrue(calculator.apply(action), message);
 }
 
-void formatVirtualStackValue(CalculatorValue value, char *buffer, size_t bufferSize) {
-  const CalculatorValue normalizedValue = (std::fabs(value) < 1e-12) ? 0.0 : value;
-  std::snprintf(buffer, bufferSize, "%.15g", normalizedValue);
-}
-
 const char *virtualModeName(const RpnCalculator &calculator) {
   if (calculator.hasError()) {
     return "ERR";
@@ -86,7 +81,7 @@ void expectVirtualDisplay(const RpnCalculator &calculator,
   }
 
   char actualX[32];
-  formatVirtualStackValue(calculator.stack().x, actualX, sizeof(actualX));
+  calculator.formatXForDisplay(actualX, sizeof(actualX), 15);
   if (std::strcmp(actualX, expectedX) != 0) {
     std::cerr << "FAIL: " << message << " (expected X text " << expectedX << ", got " << actualX
               << ")\n";
@@ -340,8 +335,8 @@ void testDisplayFormattingDuringExponentEntry() {
   expectVirtualDisplay(calculator, "ENT", "X>", "1", "display after entering 1 should show X> 1");
 
   press(calculator, CalculatorAction::DecimalPoint, "failed to enter decimal point");
-  expectVirtualDisplay(calculator, "ENT", "X>", "1",
-                       "display after entering decimal point should still show X> 1");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.",
+                       "display after entering decimal point should show X> 1.");
 
   press(calculator, CalculatorAction::Digit2, "failed to enter digit 2");
   expectVirtualDisplay(calculator, "ENT", "X>", "1.2", "display after entering 2 should show X> 1.2");
@@ -363,20 +358,20 @@ void testDisplayFormattingDuringExponentEntry() {
                        "display after entering 6 should show X> 1.23456");
 
   press(calculator, CalculatorAction::EnterExponent, "failed to enter exponent mode");
-  expectVirtualDisplay(calculator, "EEX", "X>", "1.23456",
-                       "display after pressing EEX should still show the mantissa");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1.23456e",
+                       "display after pressing EEX should show exponent-entry state");
 
   press(calculator, CalculatorAction::Digit1, "failed to enter exponent digit 1");
-  expectVirtualDisplay(calculator, "EEX", "X>", "12.3456",
-                       "display after entering exponent digit 1 should show X> 12.3456");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1.23456e1",
+                       "display after entering exponent digit 1 should show X> 1.23456e1");
 
   press(calculator, CalculatorAction::Digit2, "failed to enter exponent digit 2");
-  expectVirtualDisplay(calculator, "EEX", "X>", "1234560000000",
-                       "display after entering exponent digit 2 should show X> 1234560000000");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1.23456e12",
+                       "display after entering exponent digit 2 should show X> 1.23456e12");
 
   press(calculator, CalculatorAction::Digit3, "failed to enter exponent digit 3");
-  expectVirtualDisplay(calculator, "EEX", "X>", "1.23456e+123",
-                       "display after entering exponent digit 3 should show X> 1.23456e+123");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1.23456e123",
+                       "display after entering exponent digit 3 should show X> 1.23456e123");
 }
 
 void testRecallPushesStack() {
