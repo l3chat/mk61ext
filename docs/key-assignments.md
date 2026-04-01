@@ -17,7 +17,7 @@ The short labels in this file are working mnemonics, not final cap text.
 
 Assignments that are not yet implemented are marked in-place as *`like this`*.
 
-The `a`-`j` extension block is still the long-term mk61ext extension area, but the current firmware currently uses only `a`, `b`, and `e` for temporary convenience functions while `c` is free again.
+The `a`-`j` extension block is still the long-term mk61ext extension area, but the current firmware currently uses `a`, `b`, `c`, `d`, and `e` for practical convenience functions.
 
 That distinction matters because several labels are faithful to MK-61 shorthand but are not especially readable on first contact:
 
@@ -36,8 +36,8 @@ These rows are reserved for mk61ext-specific features in the long term, but a fe
 | --- | --- | --- |
 | `a` | `LIGHT+` | Current firmware brightens the backlight; the longer-term extension slot is still open. |
 | `b` | `LIGHT-` | Current firmware dims the backlight; the longer-term extension slot is still open. |
-| `c` | *`EXT3`* | Reserved for mk61ext-specific features. |
-| `d` | *`EXT4`* | Reserved for mk61ext-specific features. |
+| `c` | `ANGLE` | Current firmware cycles the active angle mode between radians, gradians, and degrees and saves the setting to EEPROM; the longer-term extension slot is still open. |
+| `d` | `STACK` | Current firmware toggles the on-screen stack labels `T/Z/Y/X` and saves the setting to EEPROM; the longer-term extension slot is still open. |
 | `e` | `HELP` | Current firmware toggles help mode; the longer-term extension slot is still open. |
 | `f` | *`EXT6`* | Reserved for mk61ext-specific features. |
 | `g` | *`EXT7`* | Reserved for mk61ext-specific features. |

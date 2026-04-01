@@ -75,6 +75,12 @@ enum class CalculatorError : uint8_t {
   DomainError,
 };
 
+enum class CalculatorAngleMode : uint8_t {
+  Radians,
+  Gradians,
+  Degrees,
+};
+
 struct CalculatorStack {
   CalculatorValue x;
   CalculatorValue y;
@@ -97,6 +103,8 @@ public:
   bool recallIndirectRegister(uint8_t pointerIndex);
   bool storeIndirectRegister(uint8_t pointerIndex);
   void seedRandom(uint32_t seed);
+  void setAngleMode(CalculatorAngleMode mode) { angleMode_ = mode; }
+  CalculatorAngleMode angleMode() const { return angleMode_; }
 
   CalculatorStack stack() const;
   void formatXForDisplay(char *buffer, size_t bufferSize, int precision) const;
@@ -180,6 +188,7 @@ private:
   size_t entryLength_ = 0;
   CalculatorValue lastX_ = 0.0;
   std::array<CalculatorValue, kRegisterCount> registers_{{}};
+  CalculatorAngleMode angleMode_ = CalculatorAngleMode::Radians;
   CalculatorError error_ = CalculatorError::None;
   uint32_t randomState_ = 1;
 };

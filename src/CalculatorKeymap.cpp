@@ -64,6 +64,14 @@ const char *helpLabelForKey(char keyPressed, CalculatorPrefix prefix) {
     return "LIGHT-";
   }
 
+  if (keyPressed == 'c') {
+    return "ANGLE";
+  }
+
+  if (keyPressed == 'd') {
+    return "STACK";
+  }
+
   if (keyPressed == 'e') {
     return "HELP";
   }
@@ -111,6 +119,12 @@ const char *helpDescriptionForLabel(const char *label) {
   }
   if (labelEquals(label, "LIGHT-")) {
     return "Dim the display backlight by one step.";
+  }
+  if (labelEquals(label, "ANGLE")) {
+    return "Cycle the active angle mode between radians, gradians, and degrees, then save it.";
+  }
+  if (labelEquals(label, "STACK")) {
+    return "Toggle the on-screen T/Z/Y/X stack labels on or off, then save the setting.";
   }
   if (labelEquals(label, "HELP")) {
     return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting.";
@@ -161,13 +175,13 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Divide Y by X.";
   }
   if (labelEquals(label, "sin")) {
-    return "Take the sine of X. The current firmware uses radians.";
+    return "Take the sine of X using the active angle mode.";
   }
   if (labelEquals(label, "cos")) {
-    return "Take the cosine of X. The current firmware uses radians.";
+    return "Take the cosine of X using the active angle mode.";
   }
   if (labelEquals(label, "tg")) {
-    return "Take the tangent of X. The current firmware uses radians.";
+    return "Take the tangent of X using the active angle mode.";
   }
   if (labelEquals(label, "sqrt")) {
     return "Take the square root of X.";
@@ -176,13 +190,13 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Replace X with its reciprocal.";
   }
   if (labelEquals(label, "asin")) {
-    return "Take the inverse sine of X.";
+    return "Take the inverse sine of X and express the result in the active angle mode.";
   }
   if (labelEquals(label, "acos")) {
-    return "Take the inverse cosine of X.";
+    return "Take the inverse cosine of X and express the result in the active angle mode.";
   }
   if (labelEquals(label, "atan")) {
-    return "Take the inverse tangent of X.";
+    return "Take the inverse tangent of X and express the result in the active angle mode.";
   }
   if (labelEquals(label, "pi")) {
     return "Load the constant pi into X.";

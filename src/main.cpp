@@ -137,6 +137,9 @@ constexpr int kHelpBodyY = 18;
 constexpr int kHelpLineHeight = 7;
 constexpr uint8_t kHelpBodyLineCount = 6;
 constexpr int kHelpTextWidth = 126;
+constexpr uint32_t kSettingsEepromAddress = 0;
+constexpr uint32_t kSettingsMagic = 0x4D4B3631u;  // "MK61"
+constexpr uint8_t kSettingsVersion = 1;
 
 struct KeypadDiagnostics {
   char lastKey = NO_KEY;
@@ -149,6 +152,16 @@ struct HelpState {
   bool hasSelection = false;
   char key = NO_KEY;
   CalculatorPrefix prefix = CalculatorPrefix::None;
+};
+
+struct StoredSettings {
+  uint32_t magic = kSettingsMagic;
+  uint8_t version = kSettingsVersion;
+  uint8_t angleMode = static_cast<uint8_t>(CalculatorAngleMode::Radians);
+  uint8_t showStackLabels = 1;
+  uint8_t reserved0 = 0;
+  uint16_t brightness = 256;
+  uint8_t reserved[8] = {};
 };
 
 enum class PendingRegisterOperation : uint8_t {
@@ -172,9 +185,65 @@ U8G2_ST7565_ERC12864_F_4W_SW_SPI display(
     kDisplayResetPin);
 
 int brightness = 256;
+bool showStackLevelNames = true;
+bool eepromReady = false;
 KeypadDiagnostics keypadDiagnostics;
 HelpState helpState;
 PendingRegisterOperation pendingRegisterOperation = PendingRegisterOperation::None;
+
+StoredSettings defaultStoredSettings() {
+  return StoredSettings{};
+}
+
+const char *angleModeShortName(CalculatorAngleMode mode) {
+  switch (mode) {
+    case CalculatorAngleMode::Radians:
+      return "RAD";
+    case CalculatorAngleMode::Gradians:
+      return "GRD";
+    case CalculatorAngleMode::Degrees:
+      return "DEG";
+  }
+
+  return "RAD";
+}
+
+CalculatorAngleMode nextAngleMode(CalculatorAngleMode mode) {
+  switch (mode) {
+    case CalculatorAngleMode::Radians:
+      return CalculatorAngleMode::Gradians;
+    case CalculatorAngleMode::Gradians:
+      return CalculatorAngleMode::Degrees;
+    case CalculatorAngleMode::Degrees:
+      return CalculatorAngleMode::Radians;
+  }
+
+  return CalculatorAngleMode::Radians;
+}
+
+bool isValidStoredSettings(const StoredSettings &settings) {
+  if ((settings.magic != kSettingsMagic) || (settings.version != kSettingsVersion)) {
+    return false;
+  }
+
+  if (settings.angleMode > static_cast<uint8_t>(CalculatorAngleMode::Degrees)) {
+    return false;
+  }
+
+  if (settings.brightness > 256) {
+    return false;
+  }
+
+  return true;
+}
+
+StoredSettings currentStoredSettings() {
+  StoredSettings settings = defaultStoredSettings();
+  settings.angleMode = static_cast<uint8_t>(calculator.angleMode());
+  settings.showStackLabels = showStackLevelNames ? 1 : 0;
+  settings.brightness = static_cast<uint16_t>(brightness);
+  return settings;
+}
 
 void applyBrightness() {
   if (brightness >= 256) {
@@ -186,6 +255,36 @@ void applyBrightness() {
   }
 }
 
+void saveSettings() {
+  if (!eepromReady) {
+    return;
+  }
+
+  const StoredSettings settings = currentStoredSettings();
+  (void)eeprom.putChanged(kSettingsEepromAddress, settings);
+}
+
+void applyStoredSettings(const StoredSettings &settings) {
+  brightness = settings.brightness;
+  showStackLevelNames = settings.showStackLabels != 0;
+  calculator.setAngleMode(static_cast<CalculatorAngleMode>(settings.angleMode));
+  applyBrightness();
+}
+
+void loadSettings() {
+  StoredSettings settings;
+  eeprom.get(kSettingsEepromAddress, settings);
+
+  if (!isValidStoredSettings(settings)) {
+    settings = defaultStoredSettings();
+    applyStoredSettings(settings);
+    saveSettings();
+    return;
+  }
+
+  applyStoredSettings(settings);
+}
+
 void increaseBrightness() {
   brightness *= 2;
   if (brightness > 256) {
@@ -195,11 +294,23 @@ void increaseBrightness() {
     brightness = 1;
   }
   applyBrightness();
+  saveSettings();
 }
 
 void decreaseBrightness() {
   brightness /= 2;
   applyBrightness();
+  saveSettings();
+}
+
+void cycleAngleMode() {
+  calculator.setAngleMode(nextAngleMode(calculator.angleMode()));
+  saveSettings();
+}
+
+void toggleStackLevelNames() {
+  showStackLevelNames = !showStackLevelNames;
+  saveSettings();
 }
 
 void clearHelpSelection() {
@@ -373,6 +484,18 @@ void handlePressedKey(char keyPressed) {
     return;
   }
 
+  if (keyPressed == 'c') {
+    resetCalculatorKeymapState();
+    cycleAngleMode();
+    return;
+  }
+
+  if (keyPressed == 'd') {
+    resetCalculatorKeymapState();
+    toggleStackLevelNames();
+    return;
+  }
+
   calculator.apply(translateKeyToCalculatorAction(keyPressed));
 }
 
@@ -438,7 +561,9 @@ void formatStackValueToFit(CalculatorValue value,
 
 void drawStackTextLine(int y, const char *label, const char *text) {
   display.setFont(u8g2_font_6x10_mr);
-  display.drawStr(0, y, label);
+  if ((label != nullptr) && (label[0] != '\0')) {
+    display.drawStr(0, y, label);
+  }
   drawRightAlignedText(kDisplayWidth - 1, y, text);
 }
 
@@ -446,8 +571,9 @@ void drawStackLine(int y, const char *label, CalculatorValue value) {
   char valueBuffer[32];
 
   display.setFont(u8g2_font_6x10_mr);
-  const int labelWidth = display.getStrWidth(label);
-  const int maxValueWidth = kDisplayWidth - labelWidth - kStackValueMinGap;
+  const int labelWidth = ((label != nullptr) && (label[0] != '\0')) ? display.getStrWidth(label) : 0;
+  const int gap = (labelWidth > 0) ? kStackValueMinGap : 0;
+  const int maxValueWidth = kDisplayWidth - labelWidth - gap;
   formatStackValueToFit(value, valueBuffer, sizeof(valueBuffer), maxValueWidth);
   drawStackTextLine(y, label, valueBuffer);
 }
@@ -494,6 +620,7 @@ void setupEeprom() {
   eeprom.setPageSize(64);
   eeprom.setPageWriteTime(3);
   eeprom.disablePollForWriteComplete();
+  eepromReady = true;
 }
 
 const char *calculatorModeName() {
@@ -528,23 +655,36 @@ void drawStatusBar() {
   if (helpState.enabled) {
     const char *prefixName = activeCalculatorPrefixName();
     if (prefixName[0] != '\0') {
-      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 HELP %s", prefixName);
+      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s HELP %s", angleModeShortName(calculator.angleMode()), prefixName);
     } else {
-      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 HELP");
+      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s HELP", angleModeShortName(calculator.angleMode()));
     }
     formatEventLabel(rightBuffer, sizeof(rightBuffer));
   } else if (calculator.hasError()) {
     snprintf(leftBuffer, sizeof(leftBuffer), "ERR %s", calculator.errorMessage());
     rightBuffer[0] = '\0';
   } else if (pendingRegisterOperation != PendingRegisterOperation::None) {
-    snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s", pendingRegisterOperationName());
+    snprintf(leftBuffer,
+             sizeof(leftBuffer),
+             "MK61 %s %s",
+             angleModeShortName(calculator.angleMode()),
+             pendingRegisterOperationName());
     formatEventLabel(rightBuffer, sizeof(rightBuffer));
   } else {
     const char *prefixName = activeCalculatorPrefixName();
     if (prefixName[0] != '\0') {
-      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s %s", prefixName, calculatorModeName());
+      snprintf(leftBuffer,
+               sizeof(leftBuffer),
+               "MK61 %s %s %s",
+               prefixName,
+               angleModeShortName(calculator.angleMode()),
+               calculatorModeName());
     } else {
-      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s", calculatorModeName());
+      snprintf(leftBuffer,
+               sizeof(leftBuffer),
+               "MK61 %s %s",
+               angleModeShortName(calculator.angleMode()),
+               calculatorModeName());
     }
     formatEventLabel(rightBuffer, sizeof(rightBuffer));
   }
@@ -666,16 +806,20 @@ void drawHelpScreen() {
 void drawCalculatorScreen() {
   const CalculatorStack stack = calculator.stack();
   char xBuffer[RpnCalculator::kEntryBufferSize];
+  const char *tLabel = showStackLevelNames ? "T:" : "";
+  const char *zLabel = showStackLevelNames ? "Z:" : "";
+  const char *yLabel = showStackLevelNames ? "Y:" : "";
 
   drawStatusBar();
 
-  drawStackLine(kStackFirstY + (0 * kStackRowHeight), "T:", stack.t);
-  drawStackLine(kStackFirstY + (1 * kStackRowHeight), "Z:", stack.z);
-  drawStackLine(kStackFirstY + (2 * kStackRowHeight), "Y:", stack.y);
+  drawStackLine(kStackFirstY + (0 * kStackRowHeight), tLabel, stack.t);
+  drawStackLine(kStackFirstY + (1 * kStackRowHeight), zLabel, stack.z);
+  drawStackLine(kStackFirstY + (2 * kStackRowHeight), yLabel, stack.y);
   display.setFont(u8g2_font_6x10_mr);
-  const char *xLabel = calculator.isEntering() ? "X>" : "X:";
-  const int labelWidth = display.getStrWidth(xLabel);
-  const int maxValueWidth = kDisplayWidth - labelWidth - kStackValueMinGap;
+  const char *xLabel = showStackLevelNames ? (calculator.isEntering() ? "X>" : "X:") : "";
+  const int labelWidth = (xLabel[0] != '\0') ? display.getStrWidth(xLabel) : 0;
+  const int gap = (labelWidth > 0) ? kStackValueMinGap : 0;
+  const int maxValueWidth = kDisplayWidth - labelWidth - gap;
   formatXDisplayToFit(xBuffer, sizeof(xBuffer), maxValueWidth);
   drawStackTextLine(kStackFirstY + (3 * kStackRowHeight), xLabel, xBuffer);
 }
@@ -687,6 +831,7 @@ void setup() {
 
   display.clearBuffer();
   setupEeprom();
+  loadSettings();
   display.sendBuffer();
   delay(3000);
   calculator.seedRandom(static_cast<uint32_t>(micros()) ^ 0xA5A55A5Au);

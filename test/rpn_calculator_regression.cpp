@@ -33,6 +33,17 @@ void expectEqual(CalculatorValue actual, CalculatorValue expected, const char *m
   }
 }
 
+void expectNear(CalculatorValue actual,
+                CalculatorValue expected,
+                CalculatorValue tolerance,
+                const char *message) {
+  if (std::fabs(actual - expected) > tolerance) {
+    std::cerr << "FAIL: " << message << " (expected " << expected << ", got " << actual
+              << ", tolerance " << tolerance << ")\n";
+    std::exit(1);
+  }
+}
+
 void expectError(const RpnCalculator &calculator, CalculatorError expected, const char *message) {
   if (calculator.error() != expected) {
     std::cerr << "FAIL: " << message << " (expected error " << static_cast<int>(expected)
@@ -202,6 +213,33 @@ void testBitwiseValidation() {
               "bitwise NOT should reject values above UINT32_MAX");
   expectError(calculator, CalculatorError::DomainError,
               "out-of-range values should trigger domain error");
+}
+
+void testAngleModes() {
+  RpnCalculator calculator;
+
+  calculator.setAngleMode(CalculatorAngleMode::Degrees);
+  clearAndEnter(calculator, "90");
+  press(calculator, CalculatorAction::Sin, "sine in degrees should succeed");
+  expectNear(calculator.stack().x, 1.0, 1e-12, "sin 90 degrees should equal 1");
+
+  calculator.reset();
+  calculator.setAngleMode(CalculatorAngleMode::Gradians);
+  clearAndEnter(calculator, "100");
+  press(calculator, CalculatorAction::Sin, "sine in gradians should succeed");
+  expectNear(calculator.stack().x, 1.0, 1e-12, "sin 100 gradians should equal 1");
+
+  calculator.reset();
+  calculator.setAngleMode(CalculatorAngleMode::Degrees);
+  clearAndEnter(calculator, "1");
+  press(calculator, CalculatorAction::Asin, "arcsine in degrees should succeed");
+  expectNear(calculator.stack().x, 90.0, 1e-12, "asin 1 in degree mode should equal 90");
+
+  calculator.reset();
+  calculator.setAngleMode(CalculatorAngleMode::Gradians);
+  clearAndEnter(calculator, "1");
+  press(calculator, CalculatorAction::Atan, "arctangent in gradians should succeed");
+  expectNear(calculator.stack().x, 50.0, 1e-12, "atan 1 in gradian mode should equal 50");
 }
 
 void testRegisterStoreRecall() {
@@ -528,6 +566,7 @@ int main() {
   testBitwiseBinaryOps();
   testUnsignedBehavior();
   testBitwiseValidation();
+  testAngleModes();
   testRegisterStoreRecall();
   testRegisterValidation();
   testIndirectRegisterAccess();

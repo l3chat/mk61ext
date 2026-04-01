@@ -13,6 +13,8 @@ bool isNegative(CalculatorValue value) {
 }
 
 constexpr CalculatorValue kPi = 3.14159265358979323846;
+constexpr CalculatorValue kDegreesPerCircle = 360.0;
+constexpr CalculatorValue kGradiansPerCircle = 400.0;
 constexpr CalculatorValue kMinuteLimit = 60.0;
 constexpr CalculatorValue kSecondLimit = 60.0;
 constexpr CalculatorValue kNormalizationEpsilon = 1e-9;
@@ -64,6 +66,32 @@ void formatNormalizedValue(CalculatorValue value, char *buffer, size_t bufferSiz
   std::snprintf(buffer, bufferSize, "%.*g", precision, normalizedValue);
 }
 
+CalculatorValue angleToRadians(CalculatorValue value, CalculatorAngleMode mode) {
+  switch (mode) {
+    case CalculatorAngleMode::Radians:
+      return value;
+    case CalculatorAngleMode::Gradians:
+      return value * (2.0 * kPi / kGradiansPerCircle);
+    case CalculatorAngleMode::Degrees:
+      return value * (2.0 * kPi / kDegreesPerCircle);
+  }
+
+  return value;
+}
+
+CalculatorValue radiansToAngle(CalculatorValue value, CalculatorAngleMode mode) {
+  switch (mode) {
+    case CalculatorAngleMode::Radians:
+      return value;
+    case CalculatorAngleMode::Gradians:
+      return value * (kGradiansPerCircle / (2.0 * kPi));
+    case CalculatorAngleMode::Degrees:
+      return value * (kDegreesPerCircle / (2.0 * kPi));
+  }
+
+  return value;
+}
+
 }  // namespace
 
 RpnCalculator::RpnCalculator() {
@@ -72,6 +100,7 @@ RpnCalculator::RpnCalculator() {
 
 void RpnCalculator::reset() {
   registers_.fill(0.0);
+  angleMode_ = CalculatorAngleMode::Radians;
   clearStackState();
 }
 
@@ -625,7 +654,7 @@ bool RpnCalculator::sine() {
 
   finishEntry();
   rememberLastX();
-  stack_[0] = std::sin(stack_[0]);
+  stack_[0] = std::sin(angleToRadians(stack_[0], angleMode_));
   stackLiftEnabled_ = true;
   return true;
 }
@@ -637,7 +666,7 @@ bool RpnCalculator::cosine() {
 
   finishEntry();
   rememberLastX();
-  stack_[0] = std::cos(stack_[0]);
+  stack_[0] = std::cos(angleToRadians(stack_[0], angleMode_));
   stackLiftEnabled_ = true;
   return true;
 }
@@ -650,7 +679,7 @@ bool RpnCalculator::tangent() {
   finishEntry();
   rememberLastX();
 
-  const CalculatorValue result = std::tan(stack_[0]);
+  const CalculatorValue result = std::tan(angleToRadians(stack_[0], angleMode_));
   if (!std::isfinite(result)) {
     error_ = CalculatorError::DomainError;
     return false;
@@ -674,7 +703,7 @@ bool RpnCalculator::arcsine() {
     return false;
   }
 
-  stack_[0] = std::asin(stack_[0]);
+  stack_[0] = radiansToAngle(std::asin(stack_[0]), angleMode_);
   stackLiftEnabled_ = true;
   return true;
 }
@@ -692,7 +721,7 @@ bool RpnCalculator::arccosine() {
     return false;
   }
 
-  stack_[0] = std::acos(stack_[0]);
+  stack_[0] = radiansToAngle(std::acos(stack_[0]), angleMode_);
   stackLiftEnabled_ = true;
   return true;
 }
@@ -704,7 +733,7 @@ bool RpnCalculator::arctangent() {
 
   finishEntry();
   rememberLastX();
-  stack_[0] = std::atan(stack_[0]);
+  stack_[0] = radiansToAngle(std::atan(stack_[0]), angleMode_);
   stackLiftEnabled_ = true;
   return true;
 }
