@@ -80,7 +80,7 @@ void expectVirtualDisplay(const RpnCalculator &calculator,
     std::exit(1);
   }
 
-  char actualX[32];
+  char actualX[RpnCalculator::kEntryBufferSize];
   calculator.formatXForDisplay(actualX, sizeof(actualX), 15);
   if (std::strcmp(actualX, expectedX) != 0) {
     std::cerr << "FAIL: " << message << " (expected X text " << expectedX << ", got " << actualX
@@ -408,6 +408,100 @@ void testDisplayFormattingPreservesFractionalZeros() {
   expectEqual(calculator.stack().x, 1.00001, "fractional-zero test should keep the numeric value in X");
 }
 
+void testClearXBackspacesMantissaEntry() {
+  RpnCalculator calculator;
+
+  enterText(calculator, "1.23");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.23",
+                       "mantissa backspace test should start with full entry text");
+
+  press(calculator, CalculatorAction::ClearX, "failed to backspace mantissa digit 3");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.2",
+                       "CX should delete the last mantissa digit while entering");
+
+  press(calculator, CalculatorAction::ClearX, "failed to backspace mantissa digit 2");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.",
+                       "CX should preserve the trailing decimal point after deleting 2");
+
+  press(calculator, CalculatorAction::ClearX, "failed to backspace decimal point");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1",
+                       "CX should delete the decimal point when it is the last entry character");
+
+  press(calculator, CalculatorAction::ClearX, "failed to exit mantissa entry");
+  expectVirtualDisplay(calculator, "RUN", "X:", "0",
+                       "CX should exit entry and leave X at 0 after deleting the final mantissa digit");
+}
+
+void testClearXBackspacesExponentEntry() {
+  RpnCalculator calculator;
+
+  press(calculator, CalculatorAction::Digit1, "failed to enter leading 1 for exponent backspace test");
+  press(calculator, CalculatorAction::EnterExponent,
+        "failed to enter exponent mode for exponent backspace test");
+  press(calculator, CalculatorAction::Digit1, "failed to enter exponent digit 1");
+  press(calculator, CalculatorAction::Digit0, "failed to enter exponent digit 0");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1e10",
+                       "exponent backspace test should start with full exponent text");
+
+  press(calculator, CalculatorAction::ClearX, "failed to backspace exponent digit 0");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1e1",
+                       "CX should delete the last exponent digit while entering");
+
+  press(calculator, CalculatorAction::ClearX, "failed to backspace exponent digit 1");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1e",
+                       "CX should leave bare exponent-entry mode after deleting exponent digits");
+
+  press(calculator, CalculatorAction::ClearX, "failed to exit exponent mode");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1",
+                       "CX should delete the exponent marker and return to mantissa entry");
+}
+
+void testOverflowingExponentDigitIsRejected() {
+  RpnCalculator calculator;
+
+  press(calculator, CalculatorAction::Digit1, "failed to enter leading 1 for overflow test");
+  press(calculator, CalculatorAction::EnterExponent, "failed to enter exponent mode for overflow test");
+  press(calculator, CalculatorAction::Digit1, "failed to enter exponent digit 1 for overflow test");
+  press(calculator, CalculatorAction::Digit0, "failed to enter exponent digit 0 for overflow test");
+  press(calculator, CalculatorAction::Digit0, "failed to enter exponent digit 0 for overflow test");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1e100",
+                       "overflow test should start from the largest still-finite staged exponent");
+
+  expectFalse(calculator.apply(CalculatorAction::Digit0),
+              "overflowing exponent digit should be rejected and rolled back");
+  expectVirtualDisplay(calculator, "EEX", "X>", "1e100",
+                       "overflowing exponent digit should leave the visible entry unchanged");
+  expectEqual(calculator.stack().x, 1e100,
+              "overflowing exponent digit should leave the numeric X value unchanged");
+}
+
+void testLongMantissaDigitsAreRejected() {
+  RpnCalculator calculator;
+
+  const char *acceptedPrefix = "1000000000000000";
+  enterText(calculator, acceptedPrefix);
+  expectVirtualDisplay(calculator, "ENT", "X>", acceptedPrefix,
+                       "entry should preserve a 16-digit mantissa");
+
+  expectFalse(calculator.apply(CalculatorAction::Digit0),
+              "a seventeenth significant mantissa digit should be rejected");
+  expectVirtualDisplay(calculator, "ENT", "X>", acceptedPrefix,
+                       "rejected mantissa digits should leave the visible entry unchanged");
+}
+
+void testProblematicLongMixedMantissaStopsAtPrecisionLimit() {
+  RpnCalculator calculator;
+
+  const char *acceptedPrefix = "1000000000000000";
+  enterText(calculator, acceptedPrefix);
+  for (const char *cursor = "000001111111111111111111111111111111111111111111111"; *cursor != '\0'; ++cursor) {
+    expectFalse(calculator.apply((*cursor == '0') ? CalculatorAction::Digit0 : CalculatorAction::Digit1),
+                "digits beyond the mantissa precision limit should be rejected");
+  }
+  expectVirtualDisplay(calculator, "ENT", "X>", "1000000000000000",
+                       "problematic long mantissa should stop at the supported 16-digit precision limit");
+}
+
 void testRecallPushesStack() {
   RpnCalculator calculator;
 
@@ -442,6 +536,11 @@ int main() {
   testIndirectRegisterValidation();
   testDisplayFormattingDuringExponentEntry();
   testDisplayFormattingPreservesFractionalZeros();
+  testClearXBackspacesMantissaEntry();
+  testClearXBackspacesExponentEntry();
+  testOverflowingExponentDigitIsRejected();
+  testLongMantissaDigitsAreRejected();
+  testProblematicLongMixedMantissaStopsAtPrecisionLimit();
   testRecallPushesStack();
   std::cout << "RpnCalculator regression tests passed.\n";
   return 0;

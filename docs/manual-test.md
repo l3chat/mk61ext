@@ -104,6 +104,8 @@ The current provisional MK-61-inspired run-mode subset is:
 The calculator core stores stack values as 64-bit floating point numbers. The current screen now tries to show up to 15 significant digits while still fitting each value into the 128x64 stack layout.
 Trigonometric functions currently use radians until an angle-mode feature exists.
 Indirect register access currently uses the whole-number part of the pointer register wrapped across registers `0`-`e`, with pointer registers `4`-`6` pre-incremented and `0`-`3` post-decremented.
+While `ENT` or `EEX` is active, `CX` now works like a backspace key and removes the last entry character; outside entry it still clears `X`.
+Mantissa entry is currently limited to 16 significant digits. Additional mantissa digits are rejected immediately so the calculator does not pretend to preserve a longer exact value than the numeric core can reasonably carry.
 
 1. Press `2`, then `v`, then `3`, then `+`.
 2. Confirm the `X` register shows `5`.

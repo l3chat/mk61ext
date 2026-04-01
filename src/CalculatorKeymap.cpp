@@ -230,7 +230,7 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Enter programming mode.";
   }
   if (labelEquals(label, "CX")) {
-    return "Clear the X register.";
+    return "Delete the last entry character while typing a number. Outside entry, clear the X register.";
   }
   if (labelEquals(label, "CF")) {
     return "Clear the currently armed prefix state.";

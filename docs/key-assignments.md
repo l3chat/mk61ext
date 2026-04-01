@@ -107,7 +107,7 @@ This 6x5 block is the planned MK-61-style keyboard:
 | `.` | `.` | Enter the decimal point while typing a number. | `Rdown` | Rotate the stack downward. | `AND` | Binary `AND` on decimal whole numbers from `0` to `4294967295`, using unsigned 32-bit integer semantics and a decimal result. |
 | `x` | `CHS` | Change the sign of the current `X` value or exponent entry. | *`RUN`* | Leave programming mode and return to normal calculator mode. | `OR` | Binary `OR` on decimal whole numbers from `0` to `4294967295`, using unsigned 32-bit integer semantics and a decimal result. |
 | `y` | `EEX` | Start exponent entry for the current number. | *`PRG`* | Enter programming mode. | `XOR` | Binary `XOR` on decimal whole numbers from `0` to `4294967295`, using unsigned 32-bit integer semantics and a decimal result. |
-| `z` | `CX` | Clear the `X` register. | *`CF`* | Clear the active prefix key or pending prefix state. | `NOT` | Unary binary `NOT` on a decimal whole number from `0` to `4294967295`, using unsigned 32-bit integer semantics and a decimal result. |
+| `z` | `CX` | Delete the last entry character while entering a number; otherwise clear the `X` register. | *`CF`* | Clear the active prefix key or pending prefix state. | `NOT` | Unary binary `NOT` on a decimal whole number from `0` to `4294967295`, using unsigned 32-bit integer semantics and a decimal result. |
 
 ## Notes
 

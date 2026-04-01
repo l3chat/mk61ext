@@ -85,6 +85,8 @@ struct CalculatorStack {
 class RpnCalculator {
 public:
   static constexpr uint8_t kRegisterCount = 15;
+  static constexpr size_t kEntryBufferSize = 64;
+  static constexpr size_t kMaxMantissaDigits = 16;
 
   RpnCalculator();
 
@@ -162,13 +164,12 @@ private:
   bool exponentHasDigits() const;
   size_t exponentMarkerIndex() const;
   bool mantissaIsSimpleZero() const;
-  void syncValueFromEntryBuffer();
+  size_t mantissaSignificantDigitCount() const;
+  bool syncValueFromEntryBuffer();
   void seedEntryBufferFromCurrentX();
   uint32_t nextRandomUint32();
   void liftStack();
   void dropStack();
-
-  static constexpr size_t kEntryBufferSize = 32;
 
   std::array<CalculatorValue, 4> stack_{{0.0, 0.0, 0.0, 0.0}};
   bool entering_ = false;

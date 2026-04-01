@@ -169,7 +169,7 @@ void formatNumericStackValue(CalculatorValue value, char *buffer, size_t bufferS
 }
 
 void printState(size_t stepIndex, char rawKey, const RpnCalculator &calculator) {
-  char xBuffer[32];
+  char xBuffer[RpnCalculator::kEntryBufferSize];
   char yBuffer[32];
   char zBuffer[32];
   char tBuffer[32];

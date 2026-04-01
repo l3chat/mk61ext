@@ -665,7 +665,7 @@ void drawHelpScreen() {
 
 void drawCalculatorScreen() {
   const CalculatorStack stack = calculator.stack();
-  char xBuffer[32];
+  char xBuffer[RpnCalculator::kEntryBufferSize];
 
   drawStatusBar();
 

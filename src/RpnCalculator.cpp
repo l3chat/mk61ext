@@ -1,5 +1,6 @@
 #include "RpnCalculator.h"
 
+#include <cerrno>
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -321,20 +322,35 @@ bool RpnCalculator::enterDigit(uint8_t digit) {
     startEntry();
   }
 
+  const auto previousBuffer = entryBuffer_;
+  const size_t previousLength = entryLength_;
+  const CalculatorValue previousX = stack_[0];
+
   if (!enteringExponent_ && !decimalMode_ && mantissaIsSimpleZero()) {
     const size_t digitIndex = (entryLength_ > 0 && entryBuffer_[0] == '-') ? 1 : 0;
     entryBuffer_[digitIndex] = static_cast<char>('0' + digit);
-    syncValueFromEntryBuffer();
-    return true;
-  }
-
-  if (!appendEntryChar(static_cast<char>('0' + digit))) {
+  } else if (!appendEntryChar(static_cast<char>('0' + digit))) {
     return false;
   }
 
   refreshEntryFlags();
-  syncValueFromEntryBuffer();
-  return true;
+  if (mantissaSignificantDigitCount() > kMaxMantissaDigits) {
+    entryBuffer_ = previousBuffer;
+    entryLength_ = previousLength;
+    stack_[0] = previousX;
+    refreshEntryFlags();
+    return false;
+  }
+
+  if (syncValueFromEntryBuffer()) {
+    return true;
+  }
+
+  entryBuffer_ = previousBuffer;
+  entryLength_ = previousLength;
+  stack_[0] = previousX;
+  refreshEntryFlags();
+  return false;
 }
 
 bool RpnCalculator::enterDecimalPoint() {
@@ -367,7 +383,9 @@ bool RpnCalculator::enterDecimalPoint() {
   }
 
   refreshEntryFlags();
-  syncValueFromEntryBuffer();
+  if (!syncValueFromEntryBuffer()) {
+    return false;
+  }
   return true;
 }
 
@@ -391,7 +409,9 @@ bool RpnCalculator::pressEnterExponent() {
   }
 
   refreshEntryFlags();
-  syncValueFromEntryBuffer();
+  if (!syncValueFromEntryBuffer()) {
+    return false;
+  }
   return true;
 }
 
@@ -1008,6 +1028,33 @@ bool RpnCalculator::randomValue() {
 }
 
 bool RpnCalculator::clearX() {
+  if (entering_) {
+    clearError();
+
+    if (entryLength_ > 0) {
+      removeEntryChar(entryLength_ - 1);
+    }
+
+    if ((entryLength_ == 0) || ((entryLength_ == 1) && (entryBuffer_[0] == '-'))) {
+      stack_[0] = 0.0;
+      entering_ = false;
+      clearEntryBuffer();
+      refreshEntryFlags();
+      stackLiftEnabled_ = false;
+      return true;
+    }
+
+    refreshEntryFlags();
+    if (!syncValueFromEntryBuffer()) {
+      stack_[0] = 0.0;
+      entering_ = false;
+      clearEntryBuffer();
+      refreshEntryFlags();
+    }
+    stackLiftEnabled_ = false;
+    return true;
+  }
+
   rememberLastX();
   stack_[0] = 0.0;
   finishEntry();
@@ -1107,7 +1154,9 @@ void RpnCalculator::startEntry() {
 }
 
 void RpnCalculator::finishEntry() {
-  syncValueFromEntryBuffer();
+  if (entering_ && !syncValueFromEntryBuffer()) {
+    error_ = CalculatorError::DomainError;
+  }
   entering_ = false;
   clearEntryBuffer();
   refreshEntryFlags();
@@ -1199,9 +1248,38 @@ bool RpnCalculator::mantissaIsSimpleZero() const {
          ((entryLength_ == 2) && (entryBuffer_[0] == '-') && (entryBuffer_[1] == '0'));
 }
 
-void RpnCalculator::syncValueFromEntryBuffer() {
+size_t RpnCalculator::mantissaSignificantDigitCount() const {
+  const size_t exponentMarker = exponentMarkerIndex();
+  bool seenNonZero = false;
+  size_t digitCount = 0;
+
+  for (size_t index = 0; index < exponentMarker; ++index) {
+    const char ch = entryBuffer_[index];
+    if ((ch == '-') || (ch == '.')) {
+      continue;
+    }
+
+    if (!seenNonZero) {
+      if (ch == '0') {
+        continue;
+      }
+      seenNonZero = true;
+    }
+
+    digitCount += 1;
+  }
+
+  if (!seenNonZero && decimalMode_) {
+    return 0;
+  }
+
+  return digitCount;
+}
+
+bool RpnCalculator::syncValueFromEntryBuffer() {
   if (entryLength_ == 0) {
-    return;
+    stack_[0] = 0.0;
+    return true;
   }
 
   char parseBuffer[kEntryBufferSize];
@@ -1216,13 +1294,19 @@ void RpnCalculator::syncValueFromEntryBuffer() {
   parseBuffer[parseLength] = '\0';
 
   char *end = nullptr;
+  errno = 0;
   const CalculatorValue parsedValue = std::strtod(parseBuffer, &end);
   if (end == parseBuffer) {
     stack_[0] = 0.0;
-    return;
+    return true;
+  }
+
+  if ((errno == ERANGE) || !std::isfinite(parsedValue)) {
+    return false;
   }
 
   stack_[0] = parsedValue;
+  return true;
 }
 
 void RpnCalculator::seedEntryBufferFromCurrentX() {
