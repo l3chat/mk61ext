@@ -154,24 +154,31 @@ private:
   void startEntry();
   void finishEntry();
   void clearError();
-  void updateExponentValue();
+  void clearEntryBuffer();
+  bool appendEntryChar(char ch);
+  bool insertEntryChar(size_t index, char ch);
+  void removeEntryChar(size_t index);
+  void refreshEntryFlags();
+  bool exponentHasDigits() const;
+  size_t exponentMarkerIndex() const;
+  bool mantissaIsSimpleZero() const;
+  void syncValueFromEntryBuffer();
+  void seedEntryBufferFromCurrentX();
   uint32_t nextRandomUint32();
   void liftStack();
   void dropStack();
+
+  static constexpr size_t kEntryBufferSize = 32;
 
   std::array<CalculatorValue, 4> stack_{{0.0, 0.0, 0.0, 0.0}};
   bool entering_ = false;
   bool decimalMode_ = false;
   bool enteringExponent_ = false;
   bool stackLiftEnabled_ = false;
-  bool exponentDigitsEntered_ = false;
-  bool exponentMantissaHasTrailingDecimal_ = false;
-  CalculatorValue decimalScale_ = 0.1;
-  CalculatorValue exponentMantissa_ = 0.0;
+  std::array<char, kEntryBufferSize> entryBuffer_{{}};
+  size_t entryLength_ = 0;
   CalculatorValue lastX_ = 0.0;
   std::array<CalculatorValue, kRegisterCount> registers_{{}};
-  int exponentValue_ = 0;
-  int exponentSign_ = 1;
   CalculatorError error_ = CalculatorError::None;
   uint32_t randomState_ = 1;
 };

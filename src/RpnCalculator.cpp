@@ -1,6 +1,7 @@
 #include "RpnCalculator.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 
@@ -60,35 +61,6 @@ bool coerceToIndirectRegisterIndex(CalculatorValue value, uint8_t &result) {
 void formatNormalizedValue(CalculatorValue value, char *buffer, size_t bufferSize, int precision) {
   const CalculatorValue normalizedValue = (std::fabs(value) < 1e-12) ? 0.0 : value;
   std::snprintf(buffer, bufferSize, "%.*g", precision, normalizedValue);
-}
-
-void appendDecimalPointIfNeeded(char *buffer, size_t bufferSize) {
-  char *exponentMarker = std::strchr(buffer, 'e');
-  if (exponentMarker == nullptr) {
-    exponentMarker = std::strchr(buffer, 'E');
-  }
-
-  char *decimalPoint = std::strchr(buffer, '.');
-  if ((decimalPoint != nullptr) && ((exponentMarker == nullptr) || (decimalPoint < exponentMarker))) {
-    return;
-  }
-
-  const size_t length = std::strlen(buffer);
-  if (length + 1 >= bufferSize) {
-    return;
-  }
-
-  if (exponentMarker == nullptr) {
-    buffer[length] = '.';
-    buffer[length + 1] = '\0';
-    return;
-  }
-
-  const size_t exponentOffset = static_cast<size_t>(exponentMarker - buffer);
-  std::memmove(buffer + exponentOffset + 1,
-               buffer + exponentOffset,
-               length - exponentOffset + 1);
-  buffer[exponentOffset] = '.';
 }
 
 }  // namespace
@@ -178,15 +150,10 @@ void RpnCalculator::clearStackState() {
   stack_ = {0.0, 0.0, 0.0, 0.0};
   entering_ = false;
   decimalMode_ = false;
-  decimalScale_ = 0.1;
   enteringExponent_ = false;
   stackLiftEnabled_ = false;
-  exponentDigitsEntered_ = false;
-  exponentMantissaHasTrailingDecimal_ = false;
-  exponentMantissa_ = 0.0;
+  clearEntryBuffer();
   lastX_ = 0.0;
-  exponentValue_ = 0;
-  exponentSign_ = 1;
   error_ = CalculatorError::None;
 }
 
@@ -318,26 +285,16 @@ void RpnCalculator::formatXForDisplay(char *buffer, size_t bufferSize, int preci
     return;
   }
 
-  if (enteringExponent_) {
-    char mantissaBuffer[32];
-    formatNormalizedValue(exponentMantissa_, mantissaBuffer, sizeof(mantissaBuffer), precision);
-    if (exponentMantissaHasTrailingDecimal_) {
-      appendDecimalPointIfNeeded(mantissaBuffer, sizeof(mantissaBuffer));
-    }
-
-    const char *signText = (exponentSign_ < 0) ? "-" : "";
-    if (exponentDigitsEntered_) {
-      std::snprintf(buffer, bufferSize, "%se%s%d", mantissaBuffer, signText, exponentValue_);
+  if (entering_) {
+    if (entryLength_ == 0) {
+      formatNormalizedValue(stack_[0], buffer, bufferSize, precision);
     } else {
-      std::snprintf(buffer, bufferSize, "%se%s", mantissaBuffer, signText);
+      std::snprintf(buffer, bufferSize, "%s", entryBuffer_.data());
     }
     return;
   }
 
   formatNormalizedValue(stack_[0], buffer, bufferSize, precision);
-  if (entering_ && decimalMode_ && (std::fabs(decimalScale_ - 0.1) < kNormalizationEpsilon)) {
-    appendDecimalPointIfNeeded(buffer, bufferSize);
-  }
 }
 
 const char *RpnCalculator::errorMessage() const {
@@ -364,26 +321,19 @@ bool RpnCalculator::enterDigit(uint8_t digit) {
     startEntry();
   }
 
-  if (enteringExponent_) {
-    exponentValue_ = (exponentValue_ * 10) + digit;
-    exponentDigitsEntered_ = true;
-    updateExponentValue();
+  if (!enteringExponent_ && !decimalMode_ && mantissaIsSimpleZero()) {
+    const size_t digitIndex = (entryLength_ > 0 && entryBuffer_[0] == '-') ? 1 : 0;
+    entryBuffer_[digitIndex] = static_cast<char>('0' + digit);
+    syncValueFromEntryBuffer();
     return true;
   }
 
-  if (decimalMode_) {
-    const CalculatorValue delta = static_cast<CalculatorValue>(digit) * decimalScale_;
-    stack_[0] = isNegative(stack_[0]) ? stack_[0] - delta : stack_[0] + delta;
-    decimalScale_ /= 10.0;
-    return true;
+  if (!appendEntryChar(static_cast<char>('0' + digit))) {
+    return false;
   }
 
-  if (isNegative(stack_[0])) {
-    stack_[0] = (stack_[0] * 10.0) - digit;
-  } else {
-    stack_[0] = (stack_[0] * 10.0) + digit;
-  }
-
+  refreshEntryFlags();
+  syncValueFromEntryBuffer();
   return true;
 }
 
@@ -404,8 +354,20 @@ bool RpnCalculator::enterDecimalPoint() {
     return false;
   }
 
-  decimalMode_ = true;
-  decimalScale_ = 0.1;
+  if (entryLength_ == 0) {
+    if (!appendEntryChar('0') || !appendEntryChar('.')) {
+      return false;
+    }
+  } else if ((entryLength_ == 1) && (entryBuffer_[0] == '-')) {
+    if (!appendEntryChar('0') || !appendEntryChar('.')) {
+      return false;
+    }
+  } else if (!appendEntryChar('.')) {
+    return false;
+  }
+
+  refreshEntryFlags();
+  syncValueFromEntryBuffer();
   return true;
 }
 
@@ -418,16 +380,18 @@ bool RpnCalculator::pressEnterExponent() {
     return false;
   }
 
-  entering_ = true;
-  exponentMantissaHasTrailingDecimal_ = decimalMode_ && (std::fabs(decimalScale_ - 0.1) < kNormalizationEpsilon);
-  decimalMode_ = false;
-  enteringExponent_ = true;
-  stackLiftEnabled_ = false;
-  exponentMantissa_ = stack_[0];
-  exponentValue_ = 0;
-  exponentSign_ = 1;
-  exponentDigitsEntered_ = false;
-  updateExponentValue();
+  if (!entering_) {
+    entering_ = true;
+    stackLiftEnabled_ = false;
+    seedEntryBufferFromCurrentX();
+  }
+
+  if (!appendEntryChar('e')) {
+    return false;
+  }
+
+  refreshEntryFlags();
+  syncValueFromEntryBuffer();
   return true;
 }
 
@@ -450,13 +414,42 @@ bool RpnCalculator::toggleSign() {
   rememberLastX();
 
   if (enteringExponent_) {
-    exponentSign_ = -exponentSign_;
-    updateExponentValue();
+    const size_t exponentMarker = exponentMarkerIndex();
+    if (exponentMarker >= entryLength_) {
+      return false;
+    }
+
+    const size_t signIndex = exponentMarker + 1;
+    if ((signIndex < entryLength_) && (entryBuffer_[signIndex] == '-')) {
+      removeEntryChar(signIndex);
+    } else if (!insertEntryChar(signIndex, '-')) {
+      return false;
+    }
+
+    refreshEntryFlags();
+    syncValueFromEntryBuffer();
+    return true;
+  }
+
+  if (entering_) {
+    if (entryLength_ == 0) {
+      if (!appendEntryChar('-') || !appendEntryChar('0')) {
+        return false;
+      }
+    } else if (entryBuffer_[0] == '-') {
+      removeEntryChar(0);
+    } else if (!insertEntryChar(0, '-')) {
+      return false;
+    }
+
+    refreshEntryFlags();
+    syncValueFromEntryBuffer();
+    stackLiftEnabled_ = false;
     return true;
   }
 
   stack_[0] = -stack_[0];
-  stackLiftEnabled_ = !entering_;
+  stackLiftEnabled_ = true;
   return true;
 }
 
@@ -1108,35 +1101,139 @@ void RpnCalculator::startEntry() {
 
   stack_[0] = 0.0;
   entering_ = true;
-  decimalMode_ = false;
-  decimalScale_ = 0.1;
-  enteringExponent_ = false;
   stackLiftEnabled_ = false;
-  exponentDigitsEntered_ = false;
-  exponentMantissaHasTrailingDecimal_ = false;
-  exponentMantissa_ = 0.0;
-  exponentValue_ = 0;
-  exponentSign_ = 1;
+  clearEntryBuffer();
+  refreshEntryFlags();
 }
 
 void RpnCalculator::finishEntry() {
+  syncValueFromEntryBuffer();
   entering_ = false;
-  decimalMode_ = false;
-  decimalScale_ = 0.1;
-  enteringExponent_ = false;
-  exponentDigitsEntered_ = false;
-  exponentMantissaHasTrailingDecimal_ = false;
-  exponentMantissa_ = 0.0;
-  exponentValue_ = 0;
-  exponentSign_ = 1;
+  clearEntryBuffer();
+  refreshEntryFlags();
 }
 
 void RpnCalculator::clearError() {
   error_ = CalculatorError::None;
 }
 
-void RpnCalculator::updateExponentValue() {
-  stack_[0] = exponentMantissa_ * std::pow(10.0, exponentSign_ * exponentValue_);
+void RpnCalculator::clearEntryBuffer() {
+  entryLength_ = 0;
+  entryBuffer_[0] = '\0';
+}
+
+bool RpnCalculator::appendEntryChar(char ch) {
+  if (entryLength_ + 1 >= entryBuffer_.size()) {
+    return false;
+  }
+
+  entryBuffer_[entryLength_] = ch;
+  entryLength_ += 1;
+  entryBuffer_[entryLength_] = '\0';
+  return true;
+}
+
+bool RpnCalculator::insertEntryChar(size_t index, char ch) {
+  if ((index > entryLength_) || (entryLength_ + 1 >= entryBuffer_.size())) {
+    return false;
+  }
+
+  std::memmove(entryBuffer_.data() + index + 1,
+               entryBuffer_.data() + index,
+               entryLength_ - index + 1);
+  entryBuffer_[index] = ch;
+  entryLength_ += 1;
+  return true;
+}
+
+void RpnCalculator::removeEntryChar(size_t index) {
+  if (index >= entryLength_) {
+    return;
+  }
+
+  std::memmove(entryBuffer_.data() + index,
+               entryBuffer_.data() + index + 1,
+               entryLength_ - index);
+  entryLength_ -= 1;
+}
+
+void RpnCalculator::refreshEntryFlags() {
+  const size_t exponentMarker = exponentMarkerIndex();
+  enteringExponent_ = exponentMarker < entryLength_;
+  decimalMode_ = false;
+
+  for (size_t index = 0; index < exponentMarker; ++index) {
+    if (entryBuffer_[index] == '.') {
+      decimalMode_ = true;
+      break;
+    }
+  }
+}
+
+bool RpnCalculator::exponentHasDigits() const {
+  const size_t exponentMarker = exponentMarkerIndex();
+  if (exponentMarker >= entryLength_) {
+    return false;
+  }
+
+  size_t digitIndex = exponentMarker + 1;
+  if ((digitIndex < entryLength_) && (entryBuffer_[digitIndex] == '-')) {
+    digitIndex += 1;
+  }
+
+  return digitIndex < entryLength_;
+}
+
+size_t RpnCalculator::exponentMarkerIndex() const {
+  for (size_t index = 0; index < entryLength_; ++index) {
+    if ((entryBuffer_[index] == 'e') || (entryBuffer_[index] == 'E')) {
+      return index;
+    }
+  }
+
+  return entryLength_;
+}
+
+bool RpnCalculator::mantissaIsSimpleZero() const {
+  return ((entryLength_ == 1) && (entryBuffer_[0] == '0')) ||
+         ((entryLength_ == 2) && (entryBuffer_[0] == '-') && (entryBuffer_[1] == '0'));
+}
+
+void RpnCalculator::syncValueFromEntryBuffer() {
+  if (entryLength_ == 0) {
+    return;
+  }
+
+  char parseBuffer[kEntryBufferSize];
+  std::memcpy(parseBuffer, entryBuffer_.data(), entryLength_ + 1);
+
+  const size_t exponentMarker = exponentMarkerIndex();
+  size_t parseLength = entryLength_;
+  if ((exponentMarker < entryLength_) && !exponentHasDigits()) {
+    parseLength = exponentMarker;
+  }
+
+  parseBuffer[parseLength] = '\0';
+
+  char *end = nullptr;
+  const CalculatorValue parsedValue = std::strtod(parseBuffer, &end);
+  if (end == parseBuffer) {
+    stack_[0] = 0.0;
+    return;
+  }
+
+  stack_[0] = parsedValue;
+}
+
+void RpnCalculator::seedEntryBufferFromCurrentX() {
+  clearEntryBuffer();
+
+  char seedBuffer[kEntryBufferSize];
+  formatNormalizedValue(stack_[0], seedBuffer, sizeof(seedBuffer), 15);
+  const size_t seedLength = std::strlen(seedBuffer);
+  std::memcpy(entryBuffer_.data(), seedBuffer, seedLength + 1);
+  entryLength_ = seedLength;
+  refreshEntryFlags();
 }
 
 uint32_t RpnCalculator::nextRandomUint32() {

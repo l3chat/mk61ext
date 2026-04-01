@@ -374,6 +374,40 @@ void testDisplayFormattingDuringExponentEntry() {
                        "display after entering exponent digit 3 should show X> 1.23456e123");
 }
 
+void testDisplayFormattingPreservesFractionalZeros() {
+  RpnCalculator calculator;
+
+  press(calculator, CalculatorAction::Digit1, "failed to enter leading 1 for fractional-zero test");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1",
+                       "display after entering 1 should show X> 1 in fractional-zero test");
+
+  press(calculator, CalculatorAction::DecimalPoint,
+        "failed to enter decimal point for fractional-zero test");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.",
+                       "display after entering decimal point should show X> 1. in fractional-zero test");
+
+  press(calculator, CalculatorAction::Digit0, "failed to enter first fractional zero");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.0",
+                       "display should preserve the first fractional zero");
+
+  press(calculator, CalculatorAction::Digit0, "failed to enter second fractional zero");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.00",
+                       "display should preserve the second fractional zero");
+
+  press(calculator, CalculatorAction::Digit0, "failed to enter third fractional zero");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.000",
+                       "display should preserve the third fractional zero");
+
+  press(calculator, CalculatorAction::Digit0, "failed to enter fourth fractional zero");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.0000",
+                       "display should preserve the fourth fractional zero");
+
+  press(calculator, CalculatorAction::Digit1, "failed to enter trailing 1 for fractional-zero test");
+  expectVirtualDisplay(calculator, "ENT", "X>", "1.00001",
+                       "display should preserve all fractional zeros before the final 1");
+  expectEqual(calculator.stack().x, 1.00001, "fractional-zero test should keep the numeric value in X");
+}
+
 void testRecallPushesStack() {
   RpnCalculator calculator;
 
@@ -407,6 +441,7 @@ int main() {
   testIndirectRegisterWrapping();
   testIndirectRegisterValidation();
   testDisplayFormattingDuringExponentEntry();
+  testDisplayFormattingPreservesFractionalZeros();
   testRecallPushesStack();
   std::cout << "RpnCalculator regression tests passed.\n";
   return 0;
