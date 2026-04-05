@@ -14,10 +14,12 @@ pio run -t upload
 2. The display should show `memory found` for about 3 seconds.
 3. After the splash screen, the main screen should show:
    - a filled top status bar such as `MK61 RAD RUN`,
+   - a supply-voltage readout such as `4.12V` on the right side of that top bar,
    - four equal-height stack lines labeled `T:`, `Z:`, `Y:`, and `X:` or `X>`,
    - no framed register boxes or separator borders in the stack area.
 
 If the display instead shows `no memory found`, the external EEPROM on GPIO 14/15 is not responding.
+The displayed voltage is measured from Pico `VSYS` through the board's built-in divider on `A3`, so it tracks battery voltage when the unit is battery-powered and the system supply when USB is attached.
 
 ## EEPROM Wiring Reference
 
@@ -42,6 +44,8 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 4. Confirm the status bar changes to `HOLD`.
 5. Release the key.
 6. Confirm the status bar changes to `REL`.
+7. Wait about 1.5 seconds without pressing anything.
+8. Confirm the right side of the status bar returns to the voltage readout.
 
 ## Functional Key Checks
 
@@ -115,6 +119,13 @@ Indirect register access currently uses the whole-number part of the pointer reg
 While `ENT` or `EEX` is active, `CX` now works like a backspace key and removes the last entry character; outside entry it still clears `X`.
 Mantissa entry is currently limited to 16 significant digits. Additional mantissa digits are rejected immediately so the calculator does not pretend to preserve a longer exact value than the numeric core can reasonably carry.
 Backlight brightness, angle mode, and stack-label visibility are all saved to EEPROM and restored at boot.
+
+## Supply Voltage Check
+
+1. Leave the unit idle on the main calculator screen.
+2. Confirm the right side of the status bar shows a voltage with two decimals, such as `4.12V`.
+3. If the unit is powered only from a LiPo cell, confirm the value is plausible for the current battery state.
+4. If USB is attached, expect the value to reflect Pico `VSYS`, which may be closer to the USB-backed system supply than to the battery alone.
 
 1. Press `2`, then `v`, then `3`, then `+`.
 2. Confirm the `X` register shows `5`.

@@ -119,6 +119,7 @@ constexpr uint8_t kDisplayChipSelectPin = 17;
 constexpr uint8_t kDisplayDataCommandPin = 19;
 constexpr uint8_t kDisplayResetPin = 18;
 constexpr uint8_t kBacklightPin = 16;
+constexpr uint8_t kSupplySensePin = A3;
 
 constexpr uint8_t kEepromAddress = 0x50;
 constexpr uint8_t kEepromSdaPin = 14;
@@ -140,11 +141,19 @@ constexpr int kHelpTextWidth = 126;
 constexpr uint32_t kSettingsEepromAddress = 0;
 constexpr uint32_t kSettingsMagic = 0x4D4B3631u;  // "MK61"
 constexpr uint8_t kSettingsVersion = 1;
+constexpr uint8_t kSupplyAdcResolutionBits = 12;
+constexpr uint16_t kSupplyAdcMaxReading = (1u << kSupplyAdcResolutionBits) - 1u;
+constexpr uint8_t kSupplySampleCount = 8;
+constexpr uint32_t kSupplyRefreshMs = 1000;
+constexpr uint32_t kRecentEventDisplayMs = 1500;
+constexpr float kSupplyAdcReferenceVolts = 3.3f;
+constexpr float kSupplySenseDividerScale = 3.0f;
 
 struct KeypadDiagnostics {
   char lastKey = NO_KEY;
   KeyState lastState = IDLE;
   bool hasEvent = false;
+  uint32_t lastEventMillis = 0;
 };
 
 struct HelpState {
@@ -190,6 +199,8 @@ bool eepromReady = false;
 KeypadDiagnostics keypadDiagnostics;
 HelpState helpState;
 PendingRegisterOperation pendingRegisterOperation = PendingRegisterOperation::None;
+float supplyVoltage = NAN;
+uint32_t lastSupplySampleMs = 0;
 
 StoredSettings defaultStoredSettings() {
   return StoredSettings{};
@@ -253,6 +264,42 @@ void applyBrightness() {
   } else {
     analogWrite(kBacklightPin, 255 - brightness);
   }
+}
+
+void setupSupplySense() {
+  analogReadResolution(kSupplyAdcResolutionBits);
+}
+
+float readSupplyVoltage() {
+  uint32_t rawTotal = 0;
+
+  // On the Pico board, A3/GPIO29 is tied to VSYS through a 1:3 divider.
+  for (uint8_t sample = 0; sample < kSupplySampleCount; ++sample) {
+    rawTotal += static_cast<uint32_t>(analogRead(kSupplySensePin));
+  }
+
+  const float rawAverage = static_cast<float>(rawTotal) / static_cast<float>(kSupplySampleCount);
+  const float sensedVoltage = (rawAverage / static_cast<float>(kSupplyAdcMaxReading)) * kSupplyAdcReferenceVolts;
+  return sensedVoltage * kSupplySenseDividerScale;
+}
+
+void updateSupplyVoltage(bool force = false) {
+  const uint32_t now = millis();
+  if (!force && std::isfinite(supplyVoltage) && ((now - lastSupplySampleMs) < kSupplyRefreshMs)) {
+    return;
+  }
+
+  supplyVoltage = readSupplyVoltage();
+  lastSupplySampleMs = now;
+}
+
+void formatSupplyVoltage(char *buffer, size_t bufferSize) {
+  if (!std::isfinite(supplyVoltage)) {
+    snprintf(buffer, bufferSize, "--.--V");
+    return;
+  }
+
+  snprintf(buffer, bufferSize, "%.2fV", static_cast<double>(supplyVoltage));
 }
 
 void saveSettings() {
@@ -528,6 +575,7 @@ void updateInput() {
       keypadDiagnostics.lastKey = key.kchar;
       keypadDiagnostics.lastState = key.kstate;
       keypadDiagnostics.hasEvent = true;
+      keypadDiagnostics.lastEventMillis = millis();
 
       if (key.kstate == PRESSED) {
         handlePressedKey(key.kchar);
@@ -649,6 +697,19 @@ void formatEventLabel(char *buffer, size_t bufferSize) {
   snprintf(buffer, bufferSize, "%c %s", keypadDiagnostics.lastKey, keyStateName(keypadDiagnostics.lastState));
 }
 
+bool shouldShowRecentEvent() {
+  return keypadDiagnostics.hasEvent && ((millis() - keypadDiagnostics.lastEventMillis) < kRecentEventDisplayMs);
+}
+
+void formatStatusRightText(char *buffer, size_t bufferSize) {
+  if (shouldShowRecentEvent()) {
+    formatEventLabel(buffer, bufferSize);
+    return;
+  }
+
+  formatSupplyVoltage(buffer, bufferSize);
+}
+
 void drawStatusBar() {
   char leftBuffer[24];
   char rightBuffer[18];
@@ -660,17 +721,17 @@ void drawStatusBar() {
     } else {
       snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s HELP", angleModeShortName(calculator.angleMode()));
     }
-    formatEventLabel(rightBuffer, sizeof(rightBuffer));
+    formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (calculator.hasError()) {
     snprintf(leftBuffer, sizeof(leftBuffer), "ERR %s", calculator.errorMessage());
-    rightBuffer[0] = '\0';
+    formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (pendingRegisterOperation != PendingRegisterOperation::None) {
     snprintf(leftBuffer,
              sizeof(leftBuffer),
              "MK61 %s %s",
              angleModeShortName(calculator.angleMode()),
              pendingRegisterOperationName());
-    formatEventLabel(rightBuffer, sizeof(rightBuffer));
+    formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else {
     const char *prefixName = activeCalculatorPrefixName();
     if (prefixName[0] != '\0') {
@@ -687,7 +748,7 @@ void drawStatusBar() {
                angleModeShortName(calculator.angleMode()),
                calculatorModeName());
     }
-    formatEventLabel(rightBuffer, sizeof(rightBuffer));
+    formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   }
 
   display.setFont(u8g2_font_5x7_mr);
@@ -829,10 +890,12 @@ void drawCalculatorScreen() {
 
 void setup() {
   setupDisplay();
+  setupSupplySense();
 
   display.clearBuffer();
   setupEeprom();
   loadSettings();
+  updateSupplyVoltage(true);
   display.sendBuffer();
   delay(3000);
   calculator.seedRandom(static_cast<uint32_t>(micros()) ^ 0xA5A55A5Au);
@@ -841,6 +904,7 @@ void setup() {
 void loop() {
   display.clearBuffer();
   updateInput();
+  updateSupplyVoltage();
   if (helpState.enabled) {
     drawHelpScreen();
   } else {
