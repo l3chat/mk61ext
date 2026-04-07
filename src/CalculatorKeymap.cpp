@@ -57,22 +57,26 @@ bool labelEquals(const char *label, const char *expected) {
 
 const char *helpLabelForKey(char keyPressed, CalculatorPrefix prefix) {
   if (keyPressed == 'a') {
-    return "LIGHT+";
+    return "PREV";
   }
 
   if (keyPressed == 'b') {
-    return "LIGHT-";
+    return "NEXT";
   }
 
   if (keyPressed == 'c') {
-    return "ANGLE";
+    return "DEC";
   }
 
   if (keyPressed == 'd') {
-    return "STACK";
+    return "INC";
   }
 
   if (keyPressed == 'e') {
+    return "SETTINGS";
+  }
+
+  if (keyPressed == 'f') {
     return "HELP";
   }
 
@@ -114,20 +118,23 @@ const char *helpDescriptionForLabel(const char *label) {
     return digitDescriptions[label[0] - '0'];
   }
 
-  if (labelEquals(label, "LIGHT+")) {
-    return "Brighten the display backlight by one step.";
+  if (labelEquals(label, "PREV")) {
+    return "While the settings screen is open, move the selection to the previous setting.";
   }
-  if (labelEquals(label, "LIGHT-")) {
-    return "Dim the display backlight by one step.";
+  if (labelEquals(label, "NEXT")) {
+    return "While the settings screen is open, move the selection to the next setting.";
   }
-  if (labelEquals(label, "ANGLE")) {
-    return "Cycle the active angle mode between radians, gradians, and degrees, then save it.";
+  if (labelEquals(label, "DEC")) {
+    return "While the settings screen is open, decrease or toggle the selected setting.";
   }
-  if (labelEquals(label, "STACK")) {
-    return "Toggle the on-screen T/Z/Y/X stack labels on or off, then save the setting.";
+  if (labelEquals(label, "INC")) {
+    return "While the settings screen is open, increase or toggle the selected setting.";
+  }
+  if (labelEquals(label, "SETTINGS")) {
+    return "Open the settings screen. The calculator applies staged changes immediately there and saves them to EEPROM when you leave the screen.";
   }
   if (labelEquals(label, "HELP")) {
-    return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting.";
+    return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting. Press f again to leave help.";
   }
   if (labelEquals(label, "F")) {
     return "Arm the one-shot F prefix. Press the next key to inspect or use its F-shifted meaning.";
@@ -612,7 +619,7 @@ const char *calculatorLegend(uint8_t page) {
     case 6:
       return "p4Abs p5Sign cClr";
     case 7:
-      return "a+/b- eHelp";
+      return "eSett fHelp";
     default:
       return "";
   }

@@ -138,6 +138,11 @@ constexpr int kHelpBodyY = 18;
 constexpr int kHelpLineHeight = 7;
 constexpr uint8_t kHelpBodyLineCount = 6;
 constexpr int kHelpTextWidth = 126;
+constexpr int kSettingsTitleY = 10;
+constexpr int kSettingsFirstRowY = 20;
+constexpr int kSettingsRowHeight = 10;
+constexpr int kSettingsInstructionLine1Y = 50;
+constexpr int kSettingsInstructionLine2Y = 57;
 constexpr uint32_t kSettingsEepromAddress = 0;
 constexpr uint32_t kSettingsMagic = 0x4D4B3631u;  // "MK61"
 constexpr uint8_t kSettingsVersion = 1;
@@ -173,6 +178,12 @@ struct StoredSettings {
   uint8_t reserved[8] = {};
 };
 
+struct SettingsState {
+  bool active = false;
+  StoredSettings stagedSettings{};
+  uint8_t selectedIndex = 0;
+};
+
 enum class PendingRegisterOperation : uint8_t {
   None,
   DirectRecall,
@@ -180,6 +191,14 @@ enum class PendingRegisterOperation : uint8_t {
   IndirectRecall,
   IndirectStore,
 };
+
+enum class SettingsItem : uint8_t {
+  Brightness = 0,
+  AngleMode = 1,
+  StackLabels = 2,
+};
+
+constexpr uint8_t kSettingsItemCount = 3;
 
 Keypad keypad(makeKeymap(kKeyMap), kRowPins, kColumnPins, kRowCount, kColumnCount);
 TwoWire eepromWire(kEepromSdaPin, kEepromSclPin);
@@ -198,6 +217,7 @@ bool showStackLevelNames = true;
 bool eepromReady = false;
 KeypadDiagnostics keypadDiagnostics;
 HelpState helpState;
+SettingsState settingsState;
 PendingRegisterOperation pendingRegisterOperation = PendingRegisterOperation::None;
 float supplyVoltage = NAN;
 uint32_t lastSupplySampleMs = 0;
@@ -227,6 +247,19 @@ CalculatorAngleMode nextAngleMode(CalculatorAngleMode mode) {
       return CalculatorAngleMode::Degrees;
     case CalculatorAngleMode::Degrees:
       return CalculatorAngleMode::Radians;
+  }
+
+  return CalculatorAngleMode::Radians;
+}
+
+CalculatorAngleMode previousAngleMode(CalculatorAngleMode mode) {
+  switch (mode) {
+    case CalculatorAngleMode::Radians:
+      return CalculatorAngleMode::Degrees;
+    case CalculatorAngleMode::Gradians:
+      return CalculatorAngleMode::Radians;
+    case CalculatorAngleMode::Degrees:
+      return CalculatorAngleMode::Gradians;
   }
 
   return CalculatorAngleMode::Radians;
@@ -302,12 +335,11 @@ void formatSupplyVoltage(char *buffer, size_t bufferSize) {
   snprintf(buffer, bufferSize, "%.2fV", static_cast<double>(supplyVoltage));
 }
 
-void saveSettings() {
+void saveSettings(const StoredSettings &settings) {
   if (!eepromReady) {
     return;
   }
 
-  const StoredSettings settings = currentStoredSettings();
   (void)eeprom.putChanged(kSettingsEepromAddress, settings);
 }
 
@@ -325,39 +357,52 @@ void loadSettings() {
   if (!isValidStoredSettings(settings)) {
     settings = defaultStoredSettings();
     applyStoredSettings(settings);
-    saveSettings();
+    saveSettings(settings);
     return;
   }
 
   applyStoredSettings(settings);
 }
 
-void increaseBrightness() {
-  brightness *= 2;
-  if (brightness > 256) {
-    brightness = 256;
+uint16_t increaseBrightnessValue(uint16_t value) {
+  uint16_t updated = static_cast<uint16_t>(value * 2);
+  if (updated > 256) {
+    updated = 256;
   }
-  if (brightness == 0) {
-    brightness = 1;
+  if (updated == 0) {
+    updated = 1;
   }
-  applyBrightness();
-  saveSettings();
+  return updated;
 }
 
-void decreaseBrightness() {
-  brightness /= 2;
-  applyBrightness();
-  saveSettings();
+uint16_t decreaseBrightnessValue(uint16_t value) {
+  return static_cast<uint16_t>(value / 2);
 }
 
-void cycleAngleMode() {
-  calculator.setAngleMode(nextAngleMode(calculator.angleMode()));
-  saveSettings();
+const char *settingsItemName(SettingsItem item) {
+  switch (item) {
+    case SettingsItem::Brightness:
+      return "Brightness";
+    case SettingsItem::AngleMode:
+      return "Angle";
+    case SettingsItem::StackLabels:
+      return "Labels";
+  }
+
+  return "";
 }
 
-void toggleStackLevelNames() {
-  showStackLevelNames = !showStackLevelNames;
-  saveSettings();
+void formatBrightnessSetting(char *buffer, size_t bufferSize, uint16_t value) {
+  if (value == 0) {
+    snprintf(buffer, bufferSize, "OFF");
+    return;
+  }
+
+  snprintf(buffer, bufferSize, "%u", static_cast<unsigned>(value));
+}
+
+const char *stackLabelsSettingName(uint8_t showStackLabels) {
+  return showStackLabels != 0 ? "ON" : "OFF";
 }
 
 void clearHelpSelection() {
@@ -368,6 +413,61 @@ void clearHelpSelection() {
 
 void clearPendingRegisterOperation() {
   pendingRegisterOperation = PendingRegisterOperation::None;
+}
+
+void enterSettingsMode() {
+  settingsState.active = true;
+  settingsState.stagedSettings = currentStoredSettings();
+  settingsState.selectedIndex = 0;
+  helpState.enabled = false;
+  clearHelpSelection();
+  clearPendingRegisterOperation();
+  resetCalculatorKeymapState();
+}
+
+void exitSettingsMode() {
+  settingsState.active = false;
+  saveSettings(settingsState.stagedSettings);
+  clearPendingRegisterOperation();
+  resetCalculatorKeymapState();
+}
+
+void applyStagedSettings() {
+  applyStoredSettings(settingsState.stagedSettings);
+}
+
+void selectPreviousSettingsItem() {
+  settingsState.selectedIndex =
+      (settingsState.selectedIndex + kSettingsItemCount - 1) % kSettingsItemCount;
+}
+
+void selectNextSettingsItem() {
+  settingsState.selectedIndex = (settingsState.selectedIndex + 1) % kSettingsItemCount;
+}
+
+void adjustSelectedSetting(bool increase) {
+  const SettingsItem item = static_cast<SettingsItem>(settingsState.selectedIndex);
+
+  switch (item) {
+    case SettingsItem::Brightness:
+      settingsState.stagedSettings.brightness = increase
+                                                    ? increaseBrightnessValue(settingsState.stagedSettings.brightness)
+                                                    : decreaseBrightnessValue(settingsState.stagedSettings.brightness);
+      break;
+    case SettingsItem::AngleMode: {
+      const CalculatorAngleMode currentMode =
+          static_cast<CalculatorAngleMode>(settingsState.stagedSettings.angleMode);
+      settingsState.stagedSettings.angleMode =
+          static_cast<uint8_t>(increase ? nextAngleMode(currentMode) : previousAngleMode(currentMode));
+      break;
+    }
+    case SettingsItem::StackLabels:
+      settingsState.stagedSettings.showStackLabels =
+          settingsState.stagedSettings.showStackLabels != 0 ? 0 : 1;
+      break;
+  }
+
+  applyStagedSettings();
 }
 
 void armPendingRegisterOperation(PendingRegisterOperation operation) {
@@ -504,8 +604,35 @@ bool handleRegisterOperationKey(char keyPressed) {
   return false;
 }
 
+void handleSettingsPressedKey(char keyPressed) {
+  switch (keyPressed) {
+    case 'a':
+      selectPreviousSettingsItem();
+      return;
+    case 'b':
+      selectNextSettingsItem();
+      return;
+    case 'c':
+      adjustSelectedSetting(false);
+      return;
+    case 'd':
+      adjustSelectedSetting(true);
+      return;
+    case 'e':
+      exitSettingsMode();
+      return;
+    default:
+      return;
+  }
+}
+
 void handlePressedKey(char keyPressed) {
-  if (keyPressed == 'e') {
+  if (settingsState.active) {
+    handleSettingsPressedKey(keyPressed);
+    return;
+  }
+
+  if (keyPressed == 'f') {
     toggleHelpMode();
     return;
   }
@@ -515,31 +642,12 @@ void handlePressedKey(char keyPressed) {
     return;
   }
 
+  if (keyPressed == 'e') {
+    enterSettingsMode();
+    return;
+  }
+
   if (handleRegisterOperationKey(keyPressed)) {
-    return;
-  }
-
-  if (keyPressed == 'a') {
-    resetCalculatorKeymapState();
-    increaseBrightness();
-    return;
-  }
-
-  if (keyPressed == 'b') {
-    resetCalculatorKeymapState();
-    decreaseBrightness();
-    return;
-  }
-
-  if (keyPressed == 'c') {
-    resetCalculatorKeymapState();
-    cycleAngleMode();
-    return;
-  }
-
-  if (keyPressed == 'd') {
-    resetCalculatorKeymapState();
-    toggleStackLevelNames();
     return;
   }
 
@@ -714,7 +822,10 @@ void drawStatusBar() {
   char leftBuffer[24];
   char rightBuffer[18];
 
-  if (helpState.enabled) {
+  if (settingsState.active) {
+    snprintf(leftBuffer, sizeof(leftBuffer), "MK61 SET");
+    snprintf(rightBuffer, sizeof(rightBuffer), "e SAVE");
+  } else if (helpState.enabled) {
     const char *prefixName = activeCalculatorPrefixName();
     if (prefixName[0] != '\0') {
       snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s HELP %s", angleModeShortName(calculator.angleMode()), prefixName);
@@ -846,7 +957,7 @@ void formatHelpTitle(char *buffer, size_t bufferSize) {
 
 const char *currentHelpDescription() {
   if (!helpState.hasSelection) {
-    return "Press any key to see its meaning. Use k or p first to inspect F or K shifts. Press e again to leave help.";
+    return "Press any key to see its meaning. Use k or p first to inspect F or K shifts. Press f again to leave help.";
   }
 
   return calculatorKeyHelpDescription(helpState.key, helpState.prefix);
@@ -863,6 +974,41 @@ void drawHelpScreen() {
 
   display.setFont(u8g2_font_5x7_mr);
   drawWrappedText(0, kHelpBodyY, currentHelpDescription(), kHelpTextWidth, kHelpBodyLineCount);
+}
+
+void drawSettingsRow(int y, bool selected, const char *label, const char *value) {
+  char leftBuffer[24];
+
+  snprintf(leftBuffer, sizeof(leftBuffer), "%c %s", selected ? '>' : ':', label);
+  display.drawStr(0, y, leftBuffer);
+  drawRightAlignedText(kDisplayWidth - 1, y, value);
+}
+
+void drawSettingsScreen() {
+  char valueBuffer[16];
+
+  drawStatusBar();
+  display.setFont(u8g2_font_5x7_mr);
+  display.drawStr(0, kSettingsTitleY, "Settings");
+
+  formatBrightnessSetting(valueBuffer, sizeof(valueBuffer), settingsState.stagedSettings.brightness);
+  drawSettingsRow(kSettingsFirstRowY,
+                  settingsState.selectedIndex == static_cast<uint8_t>(SettingsItem::Brightness),
+                  settingsItemName(SettingsItem::Brightness),
+                  valueBuffer);
+
+  drawSettingsRow(kSettingsFirstRowY + kSettingsRowHeight,
+                  settingsState.selectedIndex == static_cast<uint8_t>(SettingsItem::AngleMode),
+                  settingsItemName(SettingsItem::AngleMode),
+                  angleModeShortName(static_cast<CalculatorAngleMode>(settingsState.stagedSettings.angleMode)));
+
+  drawSettingsRow(kSettingsFirstRowY + (2 * kSettingsRowHeight),
+                  settingsState.selectedIndex == static_cast<uint8_t>(SettingsItem::StackLabels),
+                  settingsItemName(SettingsItem::StackLabels),
+                  stackLabelsSettingName(settingsState.stagedSettings.showStackLabels));
+
+  display.drawStr(0, kSettingsInstructionLine1Y, "a/b item   c/d change");
+  display.drawStr(0, kSettingsInstructionLine2Y, "e save and exit");
 }
 
 void drawCalculatorScreen() {
@@ -905,7 +1051,9 @@ void loop() {
   display.clearBuffer();
   updateInput();
   updateSupplyVoltage();
-  if (helpState.enabled) {
+  if (settingsState.active) {
+    drawSettingsScreen();
+  } else if (helpState.enabled) {
     drawHelpScreen();
   } else {
     drawCalculatorScreen();

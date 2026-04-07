@@ -49,22 +49,26 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 
 ## Functional Key Checks
 
-1. Press `b` repeatedly.
-2. Confirm the backlight dims in steps.
-3. Press `a` repeatedly.
-4. Confirm the backlight brightens in steps.
-5. Press `e`.
-6. Confirm the status bar changes to `MK61 RAD HELP` and the stack view is replaced by help text.
-7. Press `7`.
-8. Confirm the help text explains digit `7` instead of changing the calculator stack.
-9. Press `e` again.
-10. Confirm the normal calculator screen returns.
-11. Press `c` repeatedly.
-12. Confirm the left side of the status bar cycles through `RAD`, `GRD`, and `DEG`.
-13. Press `d`.
-14. Confirm the `T:`, `Z:`, `Y:`, and `X:` labels disappear while the values remain visible.
-15. Press `d` again.
-16. Confirm the stack labels return.
+1. Press `e`.
+2. Confirm the status bar changes to `MK61 SET` and the stack view is replaced by a settings screen.
+3. Confirm the settings list shows `Brightness`, `Angle`, and `Labels`.
+4. Press `b`.
+5. Confirm the selection moves from `Brightness` to `Angle`.
+6. Press `d`.
+7. Confirm the `Angle` value advances to the next mode (`RAD` -> `GRD` -> `DEG` -> `RAD`).
+8. Press `b`.
+9. Confirm the selection moves to `Labels`.
+10. Press `c`.
+11. Confirm the `Labels` value toggles.
+12. Press `e`.
+13. Confirm the normal calculator screen returns.
+14. Confirm the visible stack labels now match the toggled `Labels` setting.
+15. Press `f`.
+16. Confirm the status bar changes to `MK61 RAD HELP` and the stack view is replaced by help text.
+17. Press `7`.
+18. Confirm the help text explains digit `7` instead of changing the calculator stack.
+19. Press `f` again.
+20. Confirm the normal calculator screen returns.
 
 ## Calculator Smoke Test
 
@@ -107,18 +111,19 @@ The current provisional MK-61-inspired run-mode subset is:
 - `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `STO` register `0`-`e`
 - `p`, then `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `RCLI` through a pointer register
 - `p`, then `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `STOI` through a pointer register
-- `a`: backlight brighter
-- `b`: backlight dimmer
-- `c`: cycle the saved angle mode (`RAD` -> `GRD` -> `DEG` -> `RAD`)
-- `d`: hide/show the saved stack level labels
-- `e`: toggle help mode
+- `e`: open the settings screen
+- while the settings screen is open:
+  - `a` / `b`: select the previous / next setting
+  - `c` / `d`: decrease / increase the selected setting (or toggle it)
+  - `e`: save the staged settings to EEPROM and leave the screen
+- `f`: toggle help mode
 
 The calculator core stores stack values as 64-bit floating point numbers. The current screen now tries to show up to 15 significant digits while still fitting each value into the 128x64 stack layout.
 Trigonometric functions now use the active saved angle mode (`RAD`, `GRD`, or `DEG`), and the status bar shows the current choice.
 Indirect register access currently uses the whole-number part of the pointer register wrapped across registers `0`-`e`, with pointer registers `4`-`6` pre-incremented and `0`-`3` post-decremented.
 While `ENT` or `EEX` is active, `CX` now works like a backspace key and removes the last entry character; outside entry it still clears `X`.
 Mantissa entry is currently limited to 16 significant digits. Additional mantissa digits are rejected immediately so the calculator does not pretend to preserve a longer exact value than the numeric core can reasonably carry.
-Backlight brightness, angle mode, and stack-label visibility are all saved to EEPROM and restored at boot.
+Backlight brightness, angle mode, and stack-label visibility are staged in the settings screen, saved to EEPROM when that screen is exited, and restored again at boot.
 
 ## Supply Voltage Check
 
@@ -167,15 +172,15 @@ This verifies the new one-shot `F`/`K` prefix handling and the status-bar feedba
 
 ## Help Mode Check
 
-This verifies that help mode can be entered with `e` and that keys show descriptions instead of acting while it is active.
+This verifies that help mode can be entered with `f` and that keys show descriptions instead of acting while it is active.
 
-1. Press `e`.
+1. Press `f`.
 2. Confirm the left side of the top status bar shows `MK61 RAD HELP`.
 3. Press `k`.
 4. Confirm the left side of the top status bar now shows `MK61 RAD HELP F`.
 5. Press `7`.
 6. Confirm the screen shows help text for `sin` instead of changing the stack.
-7. Press `e`.
+7. Press `f`.
 8. Confirm the normal calculator stack screen returns.
 
 ## Extended Operation Check
