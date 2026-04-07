@@ -94,6 +94,14 @@
 #include "Keypad.h"
 #include "RpnCalculator.h"
 
+#if __has_include(<hardware/clocks.h>) && __has_include(<hardware/pll.h>)
+#include <hardware/clocks.h>
+#include <hardware/pll.h>
+#define MK61EXT_HAS_CPU_FREQUENCY_CONTROL 1
+#else
+#define MK61EXT_HAS_CPU_FREQUENCY_CONTROL 0
+#endif
+
 namespace {
 
 constexpr byte kRowCount = 8;
@@ -140,10 +148,14 @@ constexpr int kHelpLineHeight = 7;
 constexpr uint8_t kHelpBodyLineCount = 6;
 constexpr int kHelpTextWidth = 126;
 constexpr int kSettingsFirstRowY = 10;
-constexpr int kSettingsRowHeight = 8;
+constexpr int kSettingsRowHeight = 7;
+constexpr int kSettingsCursorBoxWidth = 6;
+constexpr int kSettingsDescriptionY = 52;
+constexpr int kSettingsDescriptionLineHeight = 6;
+constexpr uint8_t kSettingsDescriptionLineCount = 2;
 constexpr uint32_t kSettingsEepromAddress = 0;
 constexpr uint32_t kSettingsMagic = 0x4D4B3631u;  // "MK61"
-constexpr uint8_t kSettingsVersion = 2;
+constexpr uint8_t kSettingsVersion = 3;
 constexpr uint8_t kSupplyAdcResolutionBits = 12;
 constexpr uint16_t kSupplyAdcMaxReading = (1u << kSupplyAdcResolutionBits) - 1u;
 constexpr uint8_t kSupplySampleCount = 8;
@@ -171,6 +183,30 @@ constexpr uint8_t kTimeoutOptionCount = sizeof(kTimeoutOptions) / sizeof(kTimeou
 constexpr uint8_t kDefaultBacklightTimeoutIndex = 0;
 constexpr uint8_t kDefaultSleepTimeoutIndex = 0;
 
+#if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
+struct CpuFrequencyOption {
+  uint32_t frequencyHz;
+  uint32_t vcoHz;
+  uint8_t postDiv1;
+  uint8_t postDiv2;
+  const char *label;
+};
+
+constexpr CpuFrequencyOption kCpuFrequencyOptions[] = {
+    {12000000u, 432000000u, 6, 6, "12 MHz"},
+    {24000000u, 432000000u, 6, 3, "24 MHz"},
+    {48000000u, 1152000000u, 6, 4, "48 MHz"},
+    {96000000u, 1152000000u, 6, 2, "96 MHz"},
+    {125000000u, 1500000000u, 6, 2, "125 MHz"},
+};
+
+constexpr uint8_t kCpuFrequencyOptionCount =
+    sizeof(kCpuFrequencyOptions) / sizeof(kCpuFrequencyOptions[0]);
+constexpr uint8_t kDefaultCpuFrequencyIndex = kCpuFrequencyOptionCount - 1;
+#else
+constexpr uint8_t kDefaultCpuFrequencyIndex = 0;
+#endif
+
 struct KeypadDiagnostics {
   char lastKey = NO_KEY;
   KeyState lastState = IDLE;
@@ -192,7 +228,7 @@ struct StoredSettings {
   uint8_t showStackLabels = 1;
   uint8_t backlightTimeoutIndex = kDefaultBacklightTimeoutIndex;
   uint8_t sleepTimeoutIndex = kDefaultSleepTimeoutIndex;
-  uint8_t reserved0 = 0;
+  uint8_t cpuFrequencyIndex = kDefaultCpuFrequencyIndex;
   uint16_t brightness = 0;
   uint8_t reserved[7] = {};
 };
@@ -218,6 +254,7 @@ enum class SettingsItem : uint8_t {
   SleepTimeout = 2,
   AngleMode = 3,
   StackLabels = 4,
+  CpuFrequency = 5,
 };
 
 constexpr SettingsItem kSettingsItems[] = {
@@ -226,6 +263,7 @@ constexpr SettingsItem kSettingsItems[] = {
     SettingsItem::SleepTimeout,
     SettingsItem::AngleMode,
     SettingsItem::StackLabels,
+    SettingsItem::CpuFrequency,
 };
 
 constexpr uint8_t kSettingsItemCount = sizeof(kSettingsItems) / sizeof(kSettingsItems[0]);
@@ -247,6 +285,7 @@ bool showStackLevelNames = true;
 bool eepromReady = false;
 uint8_t backlightTimeoutIndex = kDefaultBacklightTimeoutIndex;
 uint8_t sleepTimeoutIndex = kDefaultSleepTimeoutIndex;
+uint8_t cpuFrequencyIndex = kDefaultCpuFrequencyIndex;
 bool backlightTimedOut = false;
 bool displaySleeping = false;
 uint32_t lastUserActivityMs = 0;
@@ -258,7 +297,25 @@ float supplyVoltage = NAN;
 uint32_t lastSupplySampleMs = 0;
 
 StoredSettings defaultStoredSettings() {
-  return StoredSettings{};
+  StoredSettings settings{};
+  settings.cpuFrequencyIndex = kDefaultCpuFrequencyIndex;
+#if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
+  const uint32_t currentFrequencyHz = clock_get_hz(clk_sys);
+  uint32_t bestDelta = UINT32_MAX;
+
+  for (uint8_t index = 0; index < kCpuFrequencyOptionCount; ++index) {
+    const uint32_t optionFrequencyHz = kCpuFrequencyOptions[index].frequencyHz;
+    const uint32_t delta =
+        (currentFrequencyHz > optionFrequencyHz) ? (currentFrequencyHz - optionFrequencyHz)
+                                                 : (optionFrequencyHz - currentFrequencyHz);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      settings.cpuFrequencyIndex = index;
+    }
+  }
+#endif
+
+  return settings;
 }
 
 uint8_t wrapOptionIndex(uint8_t currentIndex, uint8_t count, bool increase) {
@@ -328,6 +385,69 @@ const char *timeoutLabel(uint8_t index) {
   return kTimeoutOptions[index].label;
 }
 
+#if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
+const char *cpuFrequencyLabel(uint8_t index) {
+  if (index >= kCpuFrequencyOptionCount) {
+    return kCpuFrequencyOptions[kDefaultCpuFrequencyIndex].label;
+  }
+
+  return kCpuFrequencyOptions[index].label;
+}
+
+bool applyCpuFrequencySetting(uint8_t index) {
+  if (index >= kCpuFrequencyOptionCount) {
+    return false;
+  }
+
+  const CpuFrequencyOption &option = kCpuFrequencyOptions[index];
+  if (clock_get_hz(clk_sys) == option.frequencyHz) {
+    cpuFrequencyIndex = index;
+    SystemCoreClock = option.frequencyHz;
+    return true;
+  }
+
+  clock_configure(clk_sys,
+                  CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX,
+                  CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
+                  48 * MHZ,
+                  48 * MHZ);
+
+  pll_deinit(pll_sys);
+  pll_init(pll_sys, 1, option.vcoHz, option.postDiv1, option.postDiv2);
+
+  clock_configure(clk_ref,
+                  CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC,
+                  0,
+                  XOSC_MHZ * MHZ,
+                  XOSC_MHZ * MHZ);
+
+  clock_configure(clk_sys,
+                  CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX,
+                  CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
+                  option.frequencyHz,
+                  option.frequencyHz);
+
+  clock_configure(clk_peri,
+                  0,
+                  CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS,
+                  option.frequencyHz,
+                  option.frequencyHz);
+
+  cpuFrequencyIndex = index;
+  SystemCoreClock = option.frequencyHz;
+  return clock_get_hz(clk_sys) == option.frequencyHz;
+}
+#else
+const char *cpuFrequencyLabel(uint8_t) {
+  return "FIXED";
+}
+
+bool applyCpuFrequencySetting(uint8_t index) {
+  cpuFrequencyIndex = kDefaultCpuFrequencyIndex;
+  return index == kDefaultCpuFrequencyIndex;
+}
+#endif
+
 void applyBrightness();
 
 void noteUserActivity() {
@@ -363,6 +483,12 @@ bool isValidStoredSettings(const StoredSettings &settings) {
     return false;
   }
 
+#if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
+  if (settings.cpuFrequencyIndex >= kCpuFrequencyOptionCount) {
+    return false;
+  }
+#endif
+
   return true;
 }
 
@@ -372,14 +498,17 @@ StoredSettings currentStoredSettings() {
   settings.showStackLabels = showStackLevelNames ? 1 : 0;
   settings.backlightTimeoutIndex = backlightTimeoutIndex;
   settings.sleepTimeoutIndex = sleepTimeoutIndex;
+  settings.cpuFrequencyIndex = cpuFrequencyIndex;
   settings.brightness = static_cast<uint16_t>(brightness);
   return settings;
 }
 
 void applyBrightness() {
   if (displaySleeping || backlightTimedOut || (brightness <= 0)) {
+    analogWrite(kBacklightPin, -1);
     digitalWrite(kBacklightPin, HIGH);  // off
   } else if (brightness >= 256) {
+    analogWrite(kBacklightPin, -1);
     digitalWrite(kBacklightPin, LOW);  // on
   } else {
     analogWrite(kBacklightPin, 255 - brightness);
@@ -436,6 +565,9 @@ void applyStoredSettings(const StoredSettings &settings) {
   brightness = settings.brightness;
   showStackLevelNames = settings.showStackLabels != 0;
   calculator.setAngleMode(static_cast<CalculatorAngleMode>(settings.angleMode));
+  if (!applyCpuFrequencySetting(settings.cpuFrequencyIndex)) {
+    (void)applyCpuFrequencySetting(kDefaultCpuFrequencyIndex);
+  }
 
   noteUserActivity();
 }
@@ -481,6 +613,8 @@ const char *settingsItemName(SettingsItem item) {
       return "Angle";
     case SettingsItem::StackLabels:
       return "Labels";
+    case SettingsItem::CpuFrequency:
+      return "CPU freq";
   }
 
   return "";
@@ -522,9 +656,31 @@ void formatSettingValue(SettingsItem item,
     case SettingsItem::StackLabels:
       snprintf(buffer, bufferSize, "%s", stackLabelsSettingName(settings.showStackLabels));
       return;
+    case SettingsItem::CpuFrequency:
+      snprintf(buffer, bufferSize, "%s", cpuFrequencyLabel(settings.cpuFrequencyIndex));
+      return;
   }
 
   buffer[0] = '\0';
+}
+
+const char *settingsItemDescription(SettingsItem item) {
+  switch (item) {
+    case SettingsItem::Brightness:
+      return "Set the display backlight level.";
+    case SettingsItem::BacklightTimeout:
+      return "Switch off the backlight after inactivity.";
+    case SettingsItem::SleepTimeout:
+      return "Put the system into energy-saving mode after inactivity.";
+    case SettingsItem::AngleMode:
+      return "Choose RAD, GRD, or DEG.";
+    case SettingsItem::StackLabels:
+      return "Show or hide the T Z Y X labels.";
+    case SettingsItem::CpuFrequency:
+      return "Select the RP2040 system clock frequency.";
+  }
+
+  return "";
 }
 
 void clearHelpSelection() {
@@ -605,6 +761,16 @@ void adjustSelectedSetting(bool increase) {
     case SettingsItem::StackLabels:
       settingsState.stagedSettings.showStackLabels =
           settingsState.stagedSettings.showStackLabels != 0 ? 0 : 1;
+      break;
+    case SettingsItem::CpuFrequency:
+      settingsState.stagedSettings.cpuFrequencyIndex =
+          wrapOptionIndex(settingsState.stagedSettings.cpuFrequencyIndex,
+#if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
+                          kCpuFrequencyOptionCount,
+#else
+                          1,
+#endif
+                          increase);
       break;
   }
 
@@ -1045,7 +1211,12 @@ void drawStatusBar() {
   display.setDrawColor(1);
 }
 
-void drawWrappedText(int x, int y, const char *text, int maxPixelWidth, uint8_t maxLines) {
+void drawWrappedText(int x,
+                     int y,
+                     const char *text,
+                     int maxPixelWidth,
+                     uint8_t maxLines,
+                     int lineHeight) {
   char lineBuffer[64];
   size_t position = 0;
 
@@ -1106,7 +1277,7 @@ void drawWrappedText(int x, int y, const char *text, int maxPixelWidth, uint8_t 
 
     std::memcpy(lineBuffer, text + lineStart, lineLength);
     lineBuffer[lineLength] = '\0';
-    display.drawStr(x, y + (line * kHelpLineHeight), lineBuffer);
+    display.drawStr(x, y + (line * lineHeight), lineBuffer);
   }
 }
 
@@ -1146,14 +1317,22 @@ void drawHelpScreen() {
   display.drawStr(0, kHelpTitleY, titleBuffer);
 
   display.setFont(u8g2_font_5x7_mr);
-  drawWrappedText(0, kHelpBodyY, currentHelpDescription(), kHelpTextWidth, kHelpBodyLineCount);
+  drawWrappedText(
+      0, kHelpBodyY, currentHelpDescription(), kHelpTextWidth, kHelpBodyLineCount, kHelpLineHeight);
 }
 
-void drawSettingsRow(int y, bool selected, const char *label, const char *value) {
+void drawSettingsRow(int y, bool selected, uint8_t index, const char *label, const char *value) {
   char leftBuffer[32];
 
-  snprintf(leftBuffer, sizeof(leftBuffer), "%c %s", selected ? '>' : ':', label);
-  display.drawStr(0, y, leftBuffer);
+  if (selected) {
+    display.drawBox(0, y, kSettingsCursorBoxWidth, 7);
+    display.setDrawColor(0);
+    display.drawStr(1, y, ">");
+    display.setDrawColor(1);
+  }
+
+  snprintf(leftBuffer, sizeof(leftBuffer), "%u. %s", static_cast<unsigned>(index + 1), label);
+  display.drawStr(kSettingsCursorBoxWidth + 2, y, leftBuffer);
   drawRightAlignedText(kDisplayWidth - 1, y, value);
 }
 
@@ -1167,9 +1346,18 @@ void drawSettingsScreen() {
     formatSettingValue(item, settingsState.stagedSettings, valueBuffer, sizeof(valueBuffer));
     drawSettingsRow(kSettingsFirstRowY + (index * kSettingsRowHeight),
                     settingsState.selectedIndex == index,
+                    index,
                     settingsItemName(item),
                     valueBuffer);
   }
+
+  display.setFont(u8g2_font_4x6_mr);
+  drawWrappedText(0,
+                  kSettingsDescriptionY,
+                  settingsItemDescription(kSettingsItems[settingsState.selectedIndex]),
+                  kHelpTextWidth,
+                  kSettingsDescriptionLineCount,
+                  kSettingsDescriptionLineHeight);
 }
 
 void drawCalculatorScreen() {

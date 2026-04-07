@@ -131,7 +131,7 @@ const char *helpDescriptionForLabel(const char *label) {
     return "While the settings screen is open, increase or toggle the selected setting.";
   }
   if (labelEquals(label, "SETTINGS")) {
-    return "Open the settings screen. There you can preview brightness, backlight timeout, sleep timeout, angle mode, and labels. Use a/b to select, c/d to change, e to save, and f to cancel.";
+    return "Open the settings screen. There you can preview brightness, backlight timeout, sleep timeout, angle mode, labels, and CPU frequency. Use a/b to select, c/d to change, e to save, and f to cancel.";
   }
   if (labelEquals(label, "HELP")) {
     return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting. Press f again to leave help. While the settings screen is open, f cancels and restores the earlier values.";

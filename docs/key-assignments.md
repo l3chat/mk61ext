@@ -38,7 +38,7 @@ These rows are reserved for mk61ext-specific features in the long term, but a fe
 | `b` | `SET NEXT` | Current firmware selects the next item in the dedicated settings screen; the longer-term extension slot is still open. |
 | `c` | `SET -` | Current firmware decreases or toggles the selected settings item; the longer-term extension slot is still open. |
 | `d` | `SET +` | Current firmware increases or toggles the selected settings item; the longer-term extension slot is still open. |
-| `e` | `SETTINGS` | Current firmware opens the settings screen; on that screen `e` saves staged brightness, idle-timeout, sleep-timeout, angle, and label changes to EEPROM. The longer-term extension slot is still open. |
+| `e` | `SETTINGS` | Current firmware opens the settings screen; on that screen `e` saves staged brightness, idle-timeout, sleep-timeout, angle, label, and CPU-frequency changes to EEPROM. The longer-term extension slot is still open. |
 | `f` | `HELP` | Current firmware toggles help mode on this key outside settings; while the settings screen is open, the same key cancels staged changes and restores the earlier values. The longer-term extension slot is still open. |
 | `g` | *`EXT7`* | Reserved for mk61ext-specific features. |
 | `h` | *`EXT8`* | Reserved for mk61ext-specific features. |

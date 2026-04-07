@@ -51,31 +51,38 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 
 1. Press `e`.
 2. Confirm the status bar changes to `MK61 SET` and the stack view is replaced by a settings screen.
-3. Confirm the settings list shows `Brightness`, `Backlight`, `Sleep`, `Angle`, and `Labels`.
-4. Press `b`.
-5. Confirm the selection moves from `Brightness` to `Backlight`.
-6. Press `d`.
-7. Confirm the `Backlight` timeout value advances.
-8. Press `b`.
-9. Confirm the selection moves to `Sleep`.
-10. Press `d`.
-11. Confirm the `Sleep` timeout value advances.
-12. Press `b` until `Angle` is selected.
+3. Confirm the settings list is numbered and shows `1. Brightness`, `2. Backlight`, `3. Sleep`, `4. Angle`, `5. Labels`, and `6. CPU freq`.
+4. Confirm the active `>` cursor is drawn inverted.
+5. Press `b`.
+6. Confirm the selection moves from `Brightness` to `Backlight`.
+7. Confirm the description area says the backlight turns off after inactivity.
+8. Press `d`.
+9. Confirm the `Backlight` timeout value advances.
+10. Press `b`.
+11. Confirm the selection moves to `Sleep`.
+12. Confirm the description area says the system enters energy-saving mode after inactivity.
 13. Press `d`.
-14. Confirm the `Angle` value advances to the next mode (`RAD` -> `GRD` -> `DEG` -> `RAD`).
-15. Press `b` until `Labels` is selected.
-16. Press `c`.
-17. Confirm the `Labels` value toggles.
-18. Press `f`.
-19. Confirm the normal calculator screen returns and the visible stack labels revert to their original state.
-20. Press `e` again, repeat the same `Labels` toggle, then press `e`.
-21. Confirm the normal calculator screen returns and the visible stack labels now match the saved value.
-22. Press `f`.
-23. Confirm the status bar changes to `MK61 RAD HELP` and the stack view is replaced by help text.
-24. Press `7`.
-25. Confirm the help text explains digit `7` instead of changing the calculator stack.
-26. Press `f` again.
-27. Confirm the normal calculator screen returns.
+14. Confirm the `Sleep` timeout value advances.
+15. Press `b` until `Angle` is selected.
+16. Press `d`.
+17. Confirm the `Angle` value advances to the next mode (`RAD` -> `GRD` -> `DEG` -> `RAD`).
+18. Press `b` until `Labels` is selected.
+19. Press `c`.
+20. Confirm the `Labels` value toggles.
+21. Press `b` until `CPU freq` is selected.
+22. Press `d`.
+23. Confirm the CPU-frequency value advances to the next option.
+24. Confirm the available CPU-frequency values cycle through `12 MHz`, `24 MHz`, `48 MHz`, `96 MHz`, and `125 MHz`.
+25. Press `f`.
+26. Confirm the normal calculator screen returns and the visible stack labels revert to their original state.
+27. Press `e` again, repeat the same `Labels` toggle, then press `e`.
+28. Confirm the normal calculator screen returns and the visible stack labels now match the saved value.
+29. Press `f`.
+30. Confirm the status bar changes to `MK61 RAD HELP` and the stack view is replaced by help text.
+31. Press `7`.
+32. Confirm the help text explains digit `7` instead of changing the calculator stack.
+33. Press `f` again.
+34. Confirm the normal calculator screen returns.
 
 ## Calculator Smoke Test
 
@@ -131,7 +138,7 @@ Trigonometric functions now use the active saved angle mode (`RAD`, `GRD`, or `D
 Indirect register access currently uses the whole-number part of the pointer register wrapped across registers `0`-`e`, with pointer registers `4`-`6` pre-incremented and `0`-`3` post-decremented.
 While `ENT` or `EEX` is active, `CX` now works like a backspace key and removes the last entry character; outside entry it still clears `X`.
 Mantissa entry is currently limited to 16 significant digits. Additional mantissa digits are rejected immediately so the calculator does not pretend to preserve a longer exact value than the numeric core can reasonably carry.
-Backlight brightness, backlight timeout, sleep timeout, angle mode, and stack-label visibility are staged in the settings screen, saved to EEPROM when you leave that screen with `e`, and restored again at boot. When the sleep timeout expires, the LCD enters power-save and the first key only wakes the screen.
+Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label visibility, and CPU frequency are staged in the settings screen, saved to EEPROM when you leave that screen with `e`, and restored again at boot. When the sleep timeout expires, the LCD enters power-save and the first key only wakes the screen.
 
 ## Idle Power Check
 
