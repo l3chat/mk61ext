@@ -51,24 +51,31 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 
 1. Press `e`.
 2. Confirm the status bar changes to `MK61 SET` and the stack view is replaced by a settings screen.
-3. Confirm the settings list shows `Brightness`, `Angle`, and `Labels`.
+3. Confirm the settings list shows `Brightness`, `Backlight`, `Sleep`, `Angle`, and `Labels`.
 4. Press `b`.
-5. Confirm the selection moves from `Brightness` to `Angle`.
+5. Confirm the selection moves from `Brightness` to `Backlight`.
 6. Press `d`.
-7. Confirm the `Angle` value advances to the next mode (`RAD` -> `GRD` -> `DEG` -> `RAD`).
+7. Confirm the `Backlight` timeout value advances.
 8. Press `b`.
-9. Confirm the selection moves to `Labels`.
-10. Press `c`.
-11. Confirm the `Labels` value toggles.
-12. Press `e`.
-13. Confirm the normal calculator screen returns.
-14. Confirm the visible stack labels now match the toggled `Labels` setting.
-15. Press `f`.
-16. Confirm the status bar changes to `MK61 RAD HELP` and the stack view is replaced by help text.
-17. Press `7`.
-18. Confirm the help text explains digit `7` instead of changing the calculator stack.
-19. Press `f` again.
-20. Confirm the normal calculator screen returns.
+9. Confirm the selection moves to `Sleep`.
+10. Press `d`.
+11. Confirm the `Sleep` timeout value advances.
+12. Press `b` until `Angle` is selected.
+13. Press `d`.
+14. Confirm the `Angle` value advances to the next mode (`RAD` -> `GRD` -> `DEG` -> `RAD`).
+15. Press `b` until `Labels` is selected.
+16. Press `c`.
+17. Confirm the `Labels` value toggles.
+18. Press `f`.
+19. Confirm the normal calculator screen returns and the visible stack labels revert to their original state.
+20. Press `e` again, repeat the same `Labels` toggle, then press `e`.
+21. Confirm the normal calculator screen returns and the visible stack labels now match the saved value.
+22. Press `f`.
+23. Confirm the status bar changes to `MK61 RAD HELP` and the stack view is replaced by help text.
+24. Press `7`.
+25. Confirm the help text explains digit `7` instead of changing the calculator stack.
+26. Press `f` again.
+27. Confirm the normal calculator screen returns.
 
 ## Calculator Smoke Test
 
@@ -116,6 +123,7 @@ The current provisional MK-61-inspired run-mode subset is:
   - `a` / `b`: select the previous / next setting
   - `c` / `d`: decrease / increase the selected setting (or toggle it)
   - `e`: save the staged settings to EEPROM and leave the screen
+  - `f`: cancel the staged settings, restore the earlier values, and leave the screen
 - `f`: toggle help mode
 
 The calculator core stores stack values as 64-bit floating point numbers. The current screen now tries to show up to 15 significant digits while still fitting each value into the 128x64 stack layout.
@@ -123,7 +131,22 @@ Trigonometric functions now use the active saved angle mode (`RAD`, `GRD`, or `D
 Indirect register access currently uses the whole-number part of the pointer register wrapped across registers `0`-`e`, with pointer registers `4`-`6` pre-incremented and `0`-`3` post-decremented.
 While `ENT` or `EEX` is active, `CX` now works like a backspace key and removes the last entry character; outside entry it still clears `X`.
 Mantissa entry is currently limited to 16 significant digits. Additional mantissa digits are rejected immediately so the calculator does not pretend to preserve a longer exact value than the numeric core can reasonably carry.
-Backlight brightness, angle mode, and stack-label visibility are staged in the settings screen, saved to EEPROM when that screen is exited, and restored again at boot.
+Backlight brightness, backlight timeout, sleep timeout, angle mode, and stack-label visibility are staged in the settings screen, saved to EEPROM when you leave that screen with `e`, and restored again at boot. When the sleep timeout expires, the LCD enters power-save and the first key only wakes the screen.
+
+## Idle Power Check
+
+1. Open the settings screen with `e`.
+2. Set `Brightness` to a visible non-`OFF` value.
+3. Set `Backlight` to `5 s`.
+4. Set `Sleep` to `15 s`.
+5. Press `e` to save.
+6. Leave the calculator idle on the main screen.
+7. Confirm the backlight turns off after about 5 seconds.
+8. Confirm the display enters sleep after about 15 seconds.
+9. Press one key once.
+10. Confirm the display wakes without executing that key's calculator action.
+11. Press the same key again.
+12. Confirm the key now executes normally.
 
 ## Supply Voltage Check
 

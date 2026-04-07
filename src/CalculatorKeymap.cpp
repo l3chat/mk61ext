@@ -131,10 +131,10 @@ const char *helpDescriptionForLabel(const char *label) {
     return "While the settings screen is open, increase or toggle the selected setting.";
   }
   if (labelEquals(label, "SETTINGS")) {
-    return "Open the settings screen. The calculator applies staged changes immediately there and saves them to EEPROM when you leave the screen.";
+    return "Open the settings screen. There you can preview brightness, backlight timeout, sleep timeout, angle mode, and labels. Use a/b to select, c/d to change, e to save, and f to cancel.";
   }
   if (labelEquals(label, "HELP")) {
-    return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting. Press f again to leave help.";
+    return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting. Press f again to leave help. While the settings screen is open, f cancels and restores the earlier values.";
   }
   if (labelEquals(label, "F")) {
     return "Arm the one-shot F prefix. Press the next key to inspect or use its F-shifted meaning.";

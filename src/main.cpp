@@ -126,7 +126,8 @@ constexpr uint8_t kEepromSdaPin = 14;
 constexpr uint8_t kEepromSclPin = 15;
 constexpr uint32_t kEepromClockHz = 400000;
 constexpr uint16_t kDisplayContrast = 20;
-constexpr uint16_t kLoopDelayMs = 100;
+constexpr uint16_t kLoopDelayMs = 20;
+constexpr uint16_t kSleepLoopDelayMs = 100;
 constexpr int kDisplayWidth = 128;
 constexpr int kStatusBarHeight = 8;
 constexpr int kStackFirstY = 10;
@@ -138,14 +139,11 @@ constexpr int kHelpBodyY = 18;
 constexpr int kHelpLineHeight = 7;
 constexpr uint8_t kHelpBodyLineCount = 6;
 constexpr int kHelpTextWidth = 126;
-constexpr int kSettingsTitleY = 10;
-constexpr int kSettingsFirstRowY = 20;
-constexpr int kSettingsRowHeight = 10;
-constexpr int kSettingsInstructionLine1Y = 50;
-constexpr int kSettingsInstructionLine2Y = 57;
+constexpr int kSettingsFirstRowY = 10;
+constexpr int kSettingsRowHeight = 8;
 constexpr uint32_t kSettingsEepromAddress = 0;
 constexpr uint32_t kSettingsMagic = 0x4D4B3631u;  // "MK61"
-constexpr uint8_t kSettingsVersion = 1;
+constexpr uint8_t kSettingsVersion = 2;
 constexpr uint8_t kSupplyAdcResolutionBits = 12;
 constexpr uint16_t kSupplyAdcMaxReading = (1u << kSupplyAdcResolutionBits) - 1u;
 constexpr uint8_t kSupplySampleCount = 8;
@@ -153,6 +151,25 @@ constexpr uint32_t kSupplyRefreshMs = 1000;
 constexpr uint32_t kRecentEventDisplayMs = 1500;
 constexpr float kSupplyAdcReferenceVolts = 3.3f;
 constexpr float kSupplySenseDividerScale = 3.0f;
+
+struct TimeoutOption {
+  uint32_t milliseconds;
+  const char *label;
+};
+
+constexpr TimeoutOption kTimeoutOptions[] = {
+    {0u, "OFF"},
+    {5000u, "5 s"},
+    {15000u, "15 s"},
+    {30000u, "30 s"},
+    {60000u, "1 min"},
+    {120000u, "2 min"},
+    {300000u, "5 min"},
+};
+
+constexpr uint8_t kTimeoutOptionCount = sizeof(kTimeoutOptions) / sizeof(kTimeoutOptions[0]);
+constexpr uint8_t kDefaultBacklightTimeoutIndex = 0;
+constexpr uint8_t kDefaultSleepTimeoutIndex = 0;
 
 struct KeypadDiagnostics {
   char lastKey = NO_KEY;
@@ -173,13 +190,16 @@ struct StoredSettings {
   uint8_t version = kSettingsVersion;
   uint8_t angleMode = static_cast<uint8_t>(CalculatorAngleMode::Radians);
   uint8_t showStackLabels = 1;
+  uint8_t backlightTimeoutIndex = kDefaultBacklightTimeoutIndex;
+  uint8_t sleepTimeoutIndex = kDefaultSleepTimeoutIndex;
   uint8_t reserved0 = 0;
   uint16_t brightness = 0;
-  uint8_t reserved[8] = {};
+  uint8_t reserved[7] = {};
 };
 
 struct SettingsState {
   bool active = false;
+  StoredSettings originalSettings{};
   StoredSettings stagedSettings{};
   uint8_t selectedIndex = 0;
 };
@@ -194,11 +214,21 @@ enum class PendingRegisterOperation : uint8_t {
 
 enum class SettingsItem : uint8_t {
   Brightness = 0,
-  AngleMode = 1,
-  StackLabels = 2,
+  BacklightTimeout = 1,
+  SleepTimeout = 2,
+  AngleMode = 3,
+  StackLabels = 4,
 };
 
-constexpr uint8_t kSettingsItemCount = 3;
+constexpr SettingsItem kSettingsItems[] = {
+    SettingsItem::Brightness,
+    SettingsItem::BacklightTimeout,
+    SettingsItem::SleepTimeout,
+    SettingsItem::AngleMode,
+    SettingsItem::StackLabels,
+};
+
+constexpr uint8_t kSettingsItemCount = sizeof(kSettingsItems) / sizeof(kSettingsItems[0]);
 
 Keypad keypad(makeKeymap(kKeyMap), kRowPins, kColumnPins, kRowCount, kColumnCount);
 TwoWire eepromWire(kEepromSdaPin, kEepromSclPin);
@@ -215,6 +245,11 @@ U8G2_ST7565_ERC12864_F_4W_SW_SPI display(
 int brightness = 0;
 bool showStackLevelNames = true;
 bool eepromReady = false;
+uint8_t backlightTimeoutIndex = kDefaultBacklightTimeoutIndex;
+uint8_t sleepTimeoutIndex = kDefaultSleepTimeoutIndex;
+bool backlightTimedOut = false;
+bool displaySleeping = false;
+uint32_t lastUserActivityMs = 0;
 KeypadDiagnostics keypadDiagnostics;
 HelpState helpState;
 SettingsState settingsState;
@@ -224,6 +259,18 @@ uint32_t lastSupplySampleMs = 0;
 
 StoredSettings defaultStoredSettings() {
   return StoredSettings{};
+}
+
+uint8_t wrapOptionIndex(uint8_t currentIndex, uint8_t count, bool increase) {
+  if (count == 0) {
+    return 0;
+  }
+
+  if (increase) {
+    return static_cast<uint8_t>((currentIndex + 1) % count);
+  }
+
+  return static_cast<uint8_t>((currentIndex + count - 1) % count);
 }
 
 const char *angleModeShortName(CalculatorAngleMode mode) {
@@ -265,6 +312,36 @@ CalculatorAngleMode previousAngleMode(CalculatorAngleMode mode) {
   return CalculatorAngleMode::Radians;
 }
 
+uint32_t timeoutMilliseconds(uint8_t index) {
+  if (index >= kTimeoutOptionCount) {
+    return kTimeoutOptions[kDefaultBacklightTimeoutIndex].milliseconds;
+  }
+
+  return kTimeoutOptions[index].milliseconds;
+}
+
+const char *timeoutLabel(uint8_t index) {
+  if (index >= kTimeoutOptionCount) {
+    return kTimeoutOptions[kDefaultBacklightTimeoutIndex].label;
+  }
+
+  return kTimeoutOptions[index].label;
+}
+
+void applyBrightness();
+
+void noteUserActivity() {
+  lastUserActivityMs = millis();
+  backlightTimedOut = false;
+
+  if (displaySleeping) {
+    displaySleeping = false;
+    display.setPowerSave(0);
+  }
+
+  applyBrightness();
+}
+
 bool isValidStoredSettings(const StoredSettings &settings) {
   if ((settings.magic != kSettingsMagic) || (settings.version != kSettingsVersion)) {
     return false;
@@ -278,6 +355,14 @@ bool isValidStoredSettings(const StoredSettings &settings) {
     return false;
   }
 
+  if (settings.backlightTimeoutIndex >= kTimeoutOptionCount) {
+    return false;
+  }
+
+  if (settings.sleepTimeoutIndex >= kTimeoutOptionCount) {
+    return false;
+  }
+
   return true;
 }
 
@@ -285,15 +370,17 @@ StoredSettings currentStoredSettings() {
   StoredSettings settings = defaultStoredSettings();
   settings.angleMode = static_cast<uint8_t>(calculator.angleMode());
   settings.showStackLabels = showStackLevelNames ? 1 : 0;
+  settings.backlightTimeoutIndex = backlightTimeoutIndex;
+  settings.sleepTimeoutIndex = sleepTimeoutIndex;
   settings.brightness = static_cast<uint16_t>(brightness);
   return settings;
 }
 
 void applyBrightness() {
-  if (brightness >= 256) {
-    digitalWrite(kBacklightPin, LOW);  // on
-  } else if (brightness <= 0) {
+  if (displaySleeping || backlightTimedOut || (brightness <= 0)) {
     digitalWrite(kBacklightPin, HIGH);  // off
+  } else if (brightness >= 256) {
+    digitalWrite(kBacklightPin, LOW);  // on
   } else {
     analogWrite(kBacklightPin, 255 - brightness);
   }
@@ -344,10 +431,13 @@ void saveSettings(const StoredSettings &settings) {
 }
 
 void applyStoredSettings(const StoredSettings &settings) {
+  backlightTimeoutIndex = settings.backlightTimeoutIndex;
+  sleepTimeoutIndex = settings.sleepTimeoutIndex;
   brightness = settings.brightness;
   showStackLevelNames = settings.showStackLabels != 0;
   calculator.setAngleMode(static_cast<CalculatorAngleMode>(settings.angleMode));
-  applyBrightness();
+
+  noteUserActivity();
 }
 
 void loadSettings() {
@@ -383,6 +473,10 @@ const char *settingsItemName(SettingsItem item) {
   switch (item) {
     case SettingsItem::Brightness:
       return "Brightness";
+    case SettingsItem::BacklightTimeout:
+      return "Backlight";
+    case SettingsItem::SleepTimeout:
+      return "Sleep";
     case SettingsItem::AngleMode:
       return "Angle";
     case SettingsItem::StackLabels:
@@ -405,6 +499,34 @@ const char *stackLabelsSettingName(uint8_t showStackLabels) {
   return showStackLabels != 0 ? "ON" : "OFF";
 }
 
+void formatSettingValue(SettingsItem item,
+                        const StoredSettings &settings,
+                        char *buffer,
+                        size_t bufferSize) {
+  switch (item) {
+    case SettingsItem::Brightness:
+      formatBrightnessSetting(buffer, bufferSize, settings.brightness);
+      return;
+    case SettingsItem::BacklightTimeout:
+      snprintf(buffer, bufferSize, "%s", timeoutLabel(settings.backlightTimeoutIndex));
+      return;
+    case SettingsItem::SleepTimeout:
+      snprintf(buffer, bufferSize, "%s", timeoutLabel(settings.sleepTimeoutIndex));
+      return;
+    case SettingsItem::AngleMode:
+      snprintf(buffer,
+               bufferSize,
+               "%s",
+               angleModeShortName(static_cast<CalculatorAngleMode>(settings.angleMode)));
+      return;
+    case SettingsItem::StackLabels:
+      snprintf(buffer, bufferSize, "%s", stackLabelsSettingName(settings.showStackLabels));
+      return;
+  }
+
+  buffer[0] = '\0';
+}
+
 void clearHelpSelection() {
   helpState.hasSelection = false;
   helpState.key = NO_KEY;
@@ -417,12 +539,14 @@ void clearPendingRegisterOperation() {
 
 void enterSettingsMode() {
   settingsState.active = true;
-  settingsState.stagedSettings = currentStoredSettings();
+  settingsState.originalSettings = currentStoredSettings();
+  settingsState.stagedSettings = settingsState.originalSettings;
   settingsState.selectedIndex = 0;
   helpState.enabled = false;
   clearHelpSelection();
   clearPendingRegisterOperation();
   resetCalculatorKeymapState();
+  noteUserActivity();
 }
 
 void exitSettingsMode() {
@@ -430,6 +554,15 @@ void exitSettingsMode() {
   saveSettings(settingsState.stagedSettings);
   clearPendingRegisterOperation();
   resetCalculatorKeymapState();
+  noteUserActivity();
+}
+
+void cancelSettingsMode() {
+  applyStoredSettings(settingsState.originalSettings);
+  settingsState.active = false;
+  clearPendingRegisterOperation();
+  resetCalculatorKeymapState();
+  noteUserActivity();
 }
 
 void applyStagedSettings() {
@@ -446,13 +579,21 @@ void selectNextSettingsItem() {
 }
 
 void adjustSelectedSetting(bool increase) {
-  const SettingsItem item = static_cast<SettingsItem>(settingsState.selectedIndex);
+  const SettingsItem item = kSettingsItems[settingsState.selectedIndex];
 
   switch (item) {
     case SettingsItem::Brightness:
       settingsState.stagedSettings.brightness = increase
                                                     ? increaseBrightnessValue(settingsState.stagedSettings.brightness)
                                                     : decreaseBrightnessValue(settingsState.stagedSettings.brightness);
+      break;
+    case SettingsItem::BacklightTimeout:
+      settingsState.stagedSettings.backlightTimeoutIndex =
+          wrapOptionIndex(settingsState.stagedSettings.backlightTimeoutIndex, kTimeoutOptionCount, increase);
+      break;
+    case SettingsItem::SleepTimeout:
+      settingsState.stagedSettings.sleepTimeoutIndex =
+          wrapOptionIndex(settingsState.stagedSettings.sleepTimeoutIndex, kTimeoutOptionCount, increase);
       break;
     case SettingsItem::AngleMode: {
       const CalculatorAngleMode currentMode =
@@ -621,6 +762,9 @@ void handleSettingsPressedKey(char keyPressed) {
     case 'e':
       exitSettingsMode();
       return;
+    case 'f':
+      cancelSettingsMode();
+      return;
     default:
       return;
   }
@@ -686,9 +830,38 @@ void updateInput() {
       keypadDiagnostics.lastEventMillis = millis();
 
       if (key.kstate == PRESSED) {
+        const bool wasSleeping = displaySleeping;
+        noteUserActivity();
+        if (wasSleeping) {
+          continue;
+        }
+
         handlePressedKey(key.kchar);
       }
     }
+  }
+}
+
+void updateIdlePowerState() {
+  if (settingsState.active) {
+    return;
+  }
+
+  const uint32_t idleMs = millis() - lastUserActivityMs;
+  const uint32_t sleepTimeoutMs = timeoutMilliseconds(sleepTimeoutIndex);
+  if (!displaySleeping && (sleepTimeoutMs > 0) && (idleMs >= sleepTimeoutMs)) {
+    displaySleeping = true;
+    backlightTimedOut = true;
+    display.setPowerSave(1);
+    applyBrightness();
+    return;
+  }
+
+  const uint32_t backlightTimeoutMs = timeoutMilliseconds(backlightTimeoutIndex);
+  if (!displaySleeping && !backlightTimedOut && (backlightTimeoutMs > 0) &&
+      (idleMs >= backlightTimeoutMs)) {
+    backlightTimedOut = true;
+    applyBrightness();
   }
 }
 
@@ -824,7 +997,7 @@ void drawStatusBar() {
 
   if (settingsState.active) {
     snprintf(leftBuffer, sizeof(leftBuffer), "MK61 SET");
-    snprintf(rightBuffer, sizeof(rightBuffer), "e SAVE");
+    snprintf(rightBuffer, sizeof(rightBuffer), "e OK f ESC");
   } else if (helpState.enabled) {
     const char *prefixName = activeCalculatorPrefixName();
     if (prefixName[0] != '\0') {
@@ -977,7 +1150,7 @@ void drawHelpScreen() {
 }
 
 void drawSettingsRow(int y, bool selected, const char *label, const char *value) {
-  char leftBuffer[24];
+  char leftBuffer[32];
 
   snprintf(leftBuffer, sizeof(leftBuffer), "%c %s", selected ? '>' : ':', label);
   display.drawStr(0, y, leftBuffer);
@@ -989,26 +1162,14 @@ void drawSettingsScreen() {
 
   drawStatusBar();
   display.setFont(u8g2_font_5x7_mr);
-  display.drawStr(0, kSettingsTitleY, "Settings");
-
-  formatBrightnessSetting(valueBuffer, sizeof(valueBuffer), settingsState.stagedSettings.brightness);
-  drawSettingsRow(kSettingsFirstRowY,
-                  settingsState.selectedIndex == static_cast<uint8_t>(SettingsItem::Brightness),
-                  settingsItemName(SettingsItem::Brightness),
-                  valueBuffer);
-
-  drawSettingsRow(kSettingsFirstRowY + kSettingsRowHeight,
-                  settingsState.selectedIndex == static_cast<uint8_t>(SettingsItem::AngleMode),
-                  settingsItemName(SettingsItem::AngleMode),
-                  angleModeShortName(static_cast<CalculatorAngleMode>(settingsState.stagedSettings.angleMode)));
-
-  drawSettingsRow(kSettingsFirstRowY + (2 * kSettingsRowHeight),
-                  settingsState.selectedIndex == static_cast<uint8_t>(SettingsItem::StackLabels),
-                  settingsItemName(SettingsItem::StackLabels),
-                  stackLabelsSettingName(settingsState.stagedSettings.showStackLabels));
-
-  display.drawStr(0, kSettingsInstructionLine1Y, "a/b item   c/d change");
-  display.drawStr(0, kSettingsInstructionLine2Y, "e save and exit");
+  for (uint8_t index = 0; index < kSettingsItemCount; ++index) {
+    const SettingsItem item = kSettingsItems[index];
+    formatSettingValue(item, settingsState.stagedSettings, valueBuffer, sizeof(valueBuffer));
+    drawSettingsRow(kSettingsFirstRowY + (index * kSettingsRowHeight),
+                    settingsState.selectedIndex == index,
+                    settingsItemName(item),
+                    valueBuffer);
+  }
 }
 
 void drawCalculatorScreen() {
@@ -1051,6 +1212,7 @@ void loop() {
   display.clearBuffer();
   updateInput();
   updateSupplyVoltage();
+  updateIdlePowerState();
   if (settingsState.active) {
     drawSettingsScreen();
   } else if (helpState.enabled) {
@@ -1060,5 +1222,5 @@ void loop() {
   }
 
   display.sendBuffer();
-  delay(kLoopDelayMs);
+  delay(displaySleeping ? kSleepLoopDelayMs : kLoopDelayMs);
 }
