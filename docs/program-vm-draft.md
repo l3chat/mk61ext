@@ -87,10 +87,10 @@ Suggested meaning:
 Examples:
 
 ```text
-00> 17        7
-01: 8A        SIN
-02: C1        RCL 1
-03: E4 20     GTO 20
+00> 07        7
+01: 1C        SIN
+02: 41        RCL 1
+03: 51 20     GTO 20
 ```
 
 In edit mode, `>` would normally mark `edit_pc`.
@@ -174,6 +174,7 @@ Register-bearing commands should reuse the existing mk61ext register-key mapping
 - `y` for register `C`
 - `z` for register `D`
 - `v` for register `E`
+- `u` for register `F`
 
 Because direct and indirect register families fit in one byte, the recorder can show a pending nibble-style preview before commit.
 
@@ -206,9 +207,9 @@ Recommended hex-digit key mapping:
 - `y` maps to `C`
 - `z` maps to `D`
 - `v` maps to `E`
-- `f` maps to `F`
+- `u` maps to `F`
 
-This keeps `A`-`E` aligned with the existing register naming and uses the currently unused raw key `f` to complete the hexadecimal set.
+This keeps address entry aligned with the active register-letter mapping, so the same `. x y z v u` sequence consistently means `A-F`.
 
 Example direction:
 
@@ -360,17 +361,17 @@ In practice, "close to the original" should mean:
 | `00`-`0E` | digits, decimal, sign, exponent, clear, enter | keep close to original |
 | `0F`-`2F` | arithmetic, stack, `F`-layer scientific ops | keep close to original where practical |
 | `30`-`3F` | `K`-layer utilities, time, boolean, random | keep close to original where practical |
-| `40`-`4F` | direct `RCL` family plus one invalid slot | match original family |
+| `40`-`4F` | direct `RCL` family across registers `0-F` | extend family to full 16-register set |
 | `50`-`5F` | halt / return / direct jump / direct conditional / `DSNZ` / invalid slots | match original neighborhood |
-| `60`-`6F` | direct `STO` family plus one invalid slot | match original family |
-| `70`-`7F` | indirect/nonzero-jump family plus one invalid slot | match original neighborhood |
-| `80`-`8F` | indirect unconditional jump family plus one invalid slot | match original neighborhood |
-| `90`-`9F` | indirect/nonnegative-jump family plus one invalid slot | match original neighborhood |
-| `A0`-`AF` | indirect subroutine-call family plus one invalid slot | match original neighborhood |
-| `B0`-`BF` | indirect store family plus one invalid slot | match original neighborhood |
-| `C0`-`CF` | indirect/negative-jump family plus one invalid slot | match original neighborhood |
-| `D0`-`DF` | indirect recall family plus one invalid slot | match original neighborhood |
-| `E0`-`EF` | indirect/zero-jump family plus one invalid slot | match original neighborhood |
+| `60`-`6F` | direct `STO` family across registers `0-F` | extend family to full 16-register set |
+| `70`-`7F` | indirect/nonzero-jump family across registers `0-F` | extend selector space to full 16-register set |
+| `80`-`8F` | indirect unconditional jump family across registers `0-F` | extend selector space to full 16-register set |
+| `90`-`9F` | indirect/nonnegative-jump family across registers `0-F` | extend selector space to full 16-register set |
+| `A0`-`AF` | indirect subroutine-call family across registers `0-F` | extend selector space to full 16-register set |
+| `B0`-`BF` | indirect store family across registers `0-F` | extend family to full 16-register set |
+| `C0`-`CF` | indirect/negative-jump family across registers `0-F` | extend selector space to full 16-register set |
+| `D0`-`DF` | indirect recall family across registers `0-F` | extend family to full 16-register set |
+| `E0`-`EF` | indirect/zero-jump family across registers `0-F` | extend selector space to full 16-register set |
 | `F0`-`FF` | mk61ext-only extension space | reserve for explicit divergence |
 
 ### Low Region `00`-`3F`
@@ -473,7 +474,7 @@ These should stay especially close to the original because the fit is excellent 
 | `4C` | `RCL C` |
 | `4D` | `RCL D` |
 | `4E` | `RCL E` |
-| `4F` | `INVALID` |
+| `4F` | `RCL F` |
 | `60` | `STO 0` |
 | `61` | `STO 1` |
 | `62` | `STO 2` |
@@ -489,7 +490,7 @@ These should stay especially close to the original because the fit is excellent 
 | `6C` | `STO C` |
 | `6D` | `STO D` |
 | `6E` | `STO E` |
-| `6F` | `INVALID` |
+| `6F` | `STO F` |
 | `B0` | `STOI 0` |
 | `B1` | `STOI 1` |
 | `B2` | `STOI 2` |
@@ -505,7 +506,7 @@ These should stay especially close to the original because the fit is excellent 
 | `BC` | `STOI C` |
 | `BD` | `STOI D` |
 | `BE` | `STOI E` |
-| `BF` | `INVALID` |
+| `BF` | `STOI F` |
 | `D0` | `RCLI 0` |
 | `D1` | `RCLI 1` |
 | `D2` | `RCLI 2` |
@@ -521,7 +522,7 @@ These should stay especially close to the original because the fit is excellent 
 | `DC` | `RCLI C` |
 | `DD` | `RCLI D` |
 | `DE` | `RCLI E` |
-| `DF` | `INVALID` |
+| `DF` | `RCLI F` |
 
 That gives direct and indirect register operations a compact 1-byte representation, with the high nibble selecting the family and the low nibble carrying the register index.
 
@@ -571,7 +572,7 @@ These also fit the original MK-61 organization very well.
 | `7C` | `JPI X<>0 C` |
 | `7D` | `JPI X<>0 D` |
 | `7E` | `JPI X<>0 E` |
-| `7F` | `INVALID` |
+| `7F` | `JPI X<>0 F` |
 | `80` | `JPI 0` |
 | `81` | `JPI 1` |
 | `82` | `JPI 2` |
@@ -587,7 +588,7 @@ These also fit the original MK-61 organization very well.
 | `8C` | `JPI C` |
 | `8D` | `JPI D` |
 | `8E` | `JPI E` |
-| `8F` | `INVALID` |
+| `8F` | `JPI F` |
 | `90` | `JPI X>=0 0` |
 | `91` | `JPI X>=0 1` |
 | `92` | `JPI X>=0 2` |
@@ -603,7 +604,7 @@ These also fit the original MK-61 organization very well.
 | `9C` | `JPI X>=0 C` |
 | `9D` | `JPI X>=0 D` |
 | `9E` | `JPI X>=0 E` |
-| `9F` | `INVALID` |
+| `9F` | `JPI X>=0 F` |
 | `A0` | `GSBI 0` |
 | `A1` | `GSBI 1` |
 | `A2` | `GSBI 2` |
@@ -619,7 +620,7 @@ These also fit the original MK-61 organization very well.
 | `AC` | `GSBI C` |
 | `AD` | `GSBI D` |
 | `AE` | `GSBI E` |
-| `AF` | `INVALID` |
+| `AF` | `GSBI F` |
 | `C0` | `JPI X<0 0` |
 | `C1` | `JPI X<0 1` |
 | `C2` | `JPI X<0 2` |
@@ -635,7 +636,7 @@ These also fit the original MK-61 organization very well.
 | `CC` | `JPI X<0 C` |
 | `CD` | `JPI X<0 D` |
 | `CE` | `JPI X<0 E` |
-| `CF` | `INVALID` |
+| `CF` | `JPI X<0 F` |
 | `E0` | `JPI X=0 0` |
 | `E1` | `JPI X=0 1` |
 | `E2` | `JPI X=0 2` |
@@ -651,7 +652,7 @@ These also fit the original MK-61 organization very well.
 | `EC` | `JPI X=0 C` |
 | `ED` | `JPI X=0 D` |
 | `EE` | `JPI X=0 E` |
-| `EF` | `INVALID` |
+| `EF` | `JPI X=0 F` |
 
 ### Invalid Opcode Rule
 
@@ -729,7 +730,7 @@ Example direction:
 03: *
 04: RCL 1
 05: GTO 12
-06: HALT
+07: HALT
 ```
 
 Because addresses are byte addresses, a 2-byte command consumes two addresses in the underlying stream even though it appears as one decoded line in the higher-level UI.
@@ -739,10 +740,13 @@ This kind of format matches the mental model of calculator program memory much b
 For debugging or low-level inspection, the listing can also optionally include raw bytes:
 
 ```text
-00: 17      7
-01: 8A      SIN
-02: C1      RCL 1
-03: E4 12   GTO 12
+00: 01      1
+01: 0E      ENTER
+02: 02      2
+03: 12      *
+04: 41      RCL 1
+05: 51 12   GTO 12
+07: 50      HALT
 ```
 
 Labels could still exist later as an optional convenience in tools, but they should not define the core design.

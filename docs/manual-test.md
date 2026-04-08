@@ -121,10 +121,10 @@ The current provisional MK-61-inspired run-mode subset is:
 - `p`, then `v`: `RND`
 - `p`, then `.` / `x` / `y`: `AND` / `OR` / `XOR` on unsigned 32-bit whole numbers
 - `p`, then `z`: `NOT` on an unsigned 32-bit whole number
-- `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `RCL` register `0`-`e`
-- `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `STO` register `0`-`e`
-- `p`, then `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `RCLI` through a pointer register
-- `p`, then `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v`: `STOI` through a pointer register
+- `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `RCL` register `0`-`f`
+- `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `STO` register `0`-`f`
+- `p`, then `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `RCLI` through a pointer register
+- `p`, then `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `STOI` through a pointer register
 - `e`: open the settings screen
 - while the settings screen is open:
   - `a` / `b`: select the previous / next setting
@@ -135,7 +135,7 @@ The current provisional MK-61-inspired run-mode subset is:
 
 The calculator core stores stack values as 64-bit floating point numbers. The current screen now tries to show up to 15 significant digits while still fitting each value into the 128x64 stack layout.
 Trigonometric functions now use the active saved angle mode (`RAD`, `GRD`, or `DEG`), and the status bar shows the current choice.
-Indirect register access currently uses the whole-number part of the pointer register wrapped across registers `0`-`e`, with pointer registers `4`-`6` pre-incremented and `0`-`3` post-decremented.
+Indirect register access currently uses the whole-number part of the pointer register wrapped across registers `0`-`f`, with pointer registers `4`-`6` pre-incremented and `0`-`3` post-decremented.
 While `ENT` or `EEX` is active, `CX` now works like a backspace key and removes the last entry character; outside entry it still clears `X`.
 Mantissa entry is currently limited to 16 significant digits. Additional mantissa digits are rejected immediately so the calculator does not pretend to preserve a longer exact value than the numeric core can reasonably carry.
 Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label visibility, and CPU frequency are staged in the settings screen, saved to EEPROM when you leave that screen with `e`, and restored again at boot. The timeout list now reaches `15 min`, and the backlight/sleep timeouts are only active while the unit is running on battery power. When the battery-only sleep timeout expires, the LCD enters power-save and the first key only wakes the screen.
@@ -163,6 +163,8 @@ Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label 
 2. Confirm the right side of the status bar shows a voltage with two decimals, such as `4.12V`.
 3. If the unit is powered only from a LiPo cell, confirm the value is plausible for the current battery state.
 4. If USB is attached, expect the value to reflect Pico `VSYS`, which may be closer to the USB-backed system supply than to the battery alone.
+
+## Basic Calculator Check
 
 1. Press `2`, then `v`, then `3`, then `+`.
 2. Confirm the `X` register shows `5`.
