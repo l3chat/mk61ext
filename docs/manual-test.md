@@ -55,12 +55,12 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 4. Confirm the active `>` cursor is drawn inverted.
 5. Press `b`.
 6. Confirm the selection moves from `Brightness` to `Backlight`.
-7. Confirm the description area says the backlight turns off after inactivity.
+7. Confirm the description area says the backlight turns off after inactivity on battery.
 8. Press `d`.
 9. Confirm the `Backlight` timeout value advances.
 10. Press `b`.
 11. Confirm the selection moves to `Sleep`.
-12. Confirm the description area says the system enters energy-saving mode after inactivity.
+12. Confirm the description area says the system enters energy-saving mode after inactivity on battery.
 13. Press `d`.
 14. Confirm the `Sleep` timeout value advances.
 15. Press `b` until `Angle` is selected.
@@ -138,7 +138,7 @@ Trigonometric functions now use the active saved angle mode (`RAD`, `GRD`, or `D
 Indirect register access currently uses the whole-number part of the pointer register wrapped across registers `0`-`e`, with pointer registers `4`-`6` pre-incremented and `0`-`3` post-decremented.
 While `ENT` or `EEX` is active, `CX` now works like a backspace key and removes the last entry character; outside entry it still clears `X`.
 Mantissa entry is currently limited to 16 significant digits. Additional mantissa digits are rejected immediately so the calculator does not pretend to preserve a longer exact value than the numeric core can reasonably carry.
-Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label visibility, and CPU frequency are staged in the settings screen, saved to EEPROM when you leave that screen with `e`, and restored again at boot. When the sleep timeout expires, the LCD enters power-save and the first key only wakes the screen.
+Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label visibility, and CPU frequency are staged in the settings screen, saved to EEPROM when you leave that screen with `e`, and restored again at boot. The timeout list now reaches `15 min`, and the backlight/sleep timeouts are only active while the unit is running on battery power. When the battery-only sleep timeout expires, the LCD enters power-save and the first key only wakes the screen.
 
 ## Idle Power Check
 
@@ -154,6 +154,8 @@ Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label 
 10. Confirm the display wakes without executing that key's calculator action.
 11. Press the same key again.
 12. Confirm the key now executes normally.
+13. Attach USB power, or otherwise power the unit from a USB-backed supply.
+14. Confirm the backlight and sleep timeouts no longer trigger while external power is present.
 
 ## Supply Voltage Check
 
@@ -284,38 +286,45 @@ This verifies the newly implemented scientific and utility operations.
 65. Press `q`, then `v`.
 66. Confirm `X` returns to `88` from register `e`.
 67. Confirm `Y` becomes `1`, showing direct recall pushes the prior `X` value down the stack.
-68. Press `6`, then `6`, then `r`, then `6`.
-69. Confirm `X` stays `66` after storing into register `6`.
-70. Press `6`, then `r`, then `7`.
-71. Confirm `X` stays `6` after storing the pointer value into register `7`.
-72. Press `p`, then `q`, then `7`.
-73. Confirm `X` becomes `66`, showing indirect recall through register `7`.
-74. Confirm `Y` keeps the prior `0`, showing indirect recall also lifts the stack.
-75. Press `q`, then `7`.
-76. Confirm `X` still shows `6`, showing pointer register `7` stays unchanged.
-77. Confirm `Y` now shows `66`, showing direct recall pushes the prior `X` value down the stack.
-78. Press `4`, then `4`, then `r`, then `6`.
-79. Confirm `X` stays `44` after storing into register `6`.
-80. Press `5`, then `r`, then `4`.
-81. Confirm `X` stays `5` after storing the pointer value into register `4`.
-82. Press `p`, then `q`, then `4`.
-83. Confirm `X` becomes `44`, showing pointer register `4` pre-increments before use.
-84. Press `q`, then `4`.
-85. Confirm `X` becomes `6`, showing pointer register `4` was incremented.
-86. Press `5`, then `5`, then `r`, then `5`.
-87. Confirm `X` stays `55` after storing into register `5`.
-88. Press `5`, then `r`, then `3`.
-89. Confirm `X` stays `5` after storing the pointer value into register `3`.
-90. Press `p`, then `q`, then `3`.
-91. Confirm `X` becomes `55`, showing pointer register `3` uses its current value before changing.
-92. Press `q`, then `3`.
-93. Confirm `X` becomes `4`, showing pointer register `3` post-decrements after use.
-94. Press `1`, then `2`, then `3`, then `r`, then `5`.
-95. Confirm `X` stays `123` after storing into register `5`.
-96. Press `2`, then `0`, then `.`, then `9`, then `r`, then `8`.
-97. Confirm `X` stays `20.9` after storing the indirect pointer value into register `8`.
-98. Press `p`, then `q`, then `8`.
-99. Confirm `X` becomes `123`, showing indirect recall truncates the pointer value and wraps it across registers `0`-`e`.
+68. Press `9`, then `9`, then `r`, then `u`.
+69. Confirm `X` stays `99` after storing into register `f`.
+70. Press `1`, then `r`, then `1`.
+71. Confirm `X` stays `1` after changing register `1`.
+72. Press `q`, then `u`.
+73. Confirm `X` returns to `99` from register `f`.
+74. Confirm `Y` becomes `1`, showing direct recall still lifts the stack for register `f`.
+75. Press `6`, then `6`, then `r`, then `6`.
+76. Confirm `X` stays `66` after storing into register `6`.
+77. Press `6`, then `r`, then `7`.
+78. Confirm `X` stays `6` after storing the pointer value into register `7`.
+79. Press `p`, then `q`, then `7`.
+80. Confirm `X` becomes `66`, showing indirect recall through register `7`.
+81. Confirm `Y` keeps the prior `0`, showing indirect recall also lifts the stack.
+82. Press `q`, then `7`.
+83. Confirm `X` still shows `6`, showing pointer register `7` stays unchanged.
+84. Confirm `Y` now shows `66`, showing direct recall pushes the prior `X` value down the stack.
+85. Press `4`, then `4`, then `r`, then `6`.
+86. Confirm `X` stays `44` after storing into register `6`.
+87. Press `5`, then `r`, then `4`.
+88. Confirm `X` stays `5` after storing the pointer value into register `4`.
+89. Press `p`, then `q`, then `4`.
+90. Confirm `X` becomes `44`, showing pointer register `4` pre-increments before use.
+91. Press `q`, then `4`.
+92. Confirm `X` becomes `6`, showing pointer register `4` was incremented.
+93. Press `5`, then `5`, then `r`, then `5`.
+94. Confirm `X` stays `55` after storing into register `5`.
+95. Press `5`, then `r`, then `3`.
+96. Confirm `X` stays `5` after storing the pointer value into register `3`.
+97. Press `p`, then `q`, then `3`.
+98. Confirm `X` becomes `55`, showing pointer register `3` uses its current value before changing.
+99. Press `q`, then `3`.
+100. Confirm `X` becomes `4`, showing pointer register `3` post-decrements after use.
+101. Press `1`, then `2`, then `3`, then `r`, then `5`.
+102. Confirm `X` stays `123` after storing into register `5`.
+103. Press `2`, then `1`, then `.`, then `9`, then `r`, then `8`.
+104. Confirm `X` stays `21.9` after storing the indirect pointer value into register `8`.
+105. Press `p`, then `q`, then `8`.
+106. Confirm `X` becomes `123`, showing indirect recall truncates the pointer value and wraps it across registers `0`-`f`.
 
 ## Entry Stack-Lift Check
 

@@ -257,11 +257,17 @@ void testRegisterStoreRecall() {
   clearAndEnter(calculator, "88");
   expectTrue(calculator.storeRegister(14), "store register e should succeed");
 
+  clearAndEnter(calculator, "99");
+  expectTrue(calculator.storeRegister(15), "store register f should succeed");
+
   press(calculator, CalculatorAction::ClearAll, "clear all should succeed");
   expectEqual(calculator.stack().x, 0.0, "clear all should clear X");
   expectTrue(calculator.recallRegister(14), "recall register e should succeed after clear all");
   expectEqual(calculator.stack().x, 88.0, "clear all should not erase stored registers");
   expectEqual(calculator.stack().y, 0.0, "recalling register e should push the prior X value into Y");
+  expectTrue(calculator.recallRegister(15), "recall register f should succeed after clear all");
+  expectEqual(calculator.stack().x, 99.0, "clear all should not erase register f");
+  expectEqual(calculator.stack().y, 88.0, "recalling register f should push the prior X value into Y");
 }
 
 void testRegisterValidation() {
@@ -340,13 +346,13 @@ void testIndirectRegisterWrapping() {
 
   clearAndEnter(calculator, "123");
   expectTrue(calculator.storeRegister(5), "store register 5 should succeed");
-  clearAndEnter(calculator, "20.9");
+  clearAndEnter(calculator, "21.9");
   expectTrue(calculator.storeRegister(8), "store register 8 should succeed");
 
   clearAndEnter(calculator, "0");
   expectTrue(calculator.recallIndirectRegister(8), "indirect recall through register 8 should succeed");
   expectEqual(calculator.stack().x, 123.0,
-              "indirect recall should truncate and wrap pointer values across registers 0-e");
+              "indirect recall should truncate and wrap pointer values across registers 0-f");
   expectEqual(calculator.stack().y, 0.0,
               "indirect recall through register 8 should push the prior X value into Y");
 }

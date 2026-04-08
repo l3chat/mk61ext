@@ -80,8 +80,6 @@
  */
 
 #include <Arduino.h>
-#include <SPI.h>
-#include <U8g2lib.h>
 #include <Wire.h>
 
 #include <cmath>
@@ -92,6 +90,7 @@
 
 #include "CalculatorKeymap.h"
 #include "Keypad.h"
+#include "Mk61extDisplay.h"
 #include "RpnCalculator.h"
 
 #if __has_include(<hardware/clocks.h>) && __has_include(<hardware/pll.h>)
@@ -159,10 +158,12 @@ constexpr uint8_t kSettingsVersion = 3;
 constexpr uint8_t kSupplyAdcResolutionBits = 12;
 constexpr uint16_t kSupplyAdcMaxReading = (1u << kSupplyAdcResolutionBits) - 1u;
 constexpr uint8_t kSupplySampleCount = 8;
-constexpr uint32_t kSupplyRefreshMs = 1000;
+constexpr uint32_t kSupplyRefreshMs = 10000;
 constexpr uint32_t kRecentEventDisplayMs = 1500;
 constexpr float kSupplyAdcReferenceVolts = 3.3f;
 constexpr float kSupplySenseDividerScale = 3.0f;
+constexpr float kExternalPowerDetectOnVolts = 4.35f;
+constexpr float kExternalPowerDetectOffVolts = 4.20f;
 
 struct TimeoutOption {
   uint32_t milliseconds;
@@ -177,6 +178,7 @@ constexpr TimeoutOption kTimeoutOptions[] = {
     {60000u, "1 min"},
     {120000u, "2 min"},
     {300000u, "5 min"},
+    {900000u, "15 min"},
 };
 
 constexpr uint8_t kTimeoutOptionCount = sizeof(kTimeoutOptions) / sizeof(kTimeoutOptions[0]);
@@ -272,7 +274,7 @@ Keypad keypad(makeKeymap(kKeyMap), kRowPins, kColumnPins, kRowCount, kColumnCoun
 TwoWire eepromWire(kEepromSdaPin, kEepromSclPin);
 ExternalEEPROM eeprom;
 RpnCalculator calculator;
-U8G2_ST7565_ERC12864_F_4W_SW_SPI display(
+Mk61extDisplay display(
     U8G2_R0,
     kDisplayClockPin,
     kDisplayDataPin,
@@ -295,6 +297,7 @@ SettingsState settingsState;
 PendingRegisterOperation pendingRegisterOperation = PendingRegisterOperation::None;
 float supplyVoltage = NAN;
 uint32_t lastSupplySampleMs = 0;
+bool runningOnBattery = true;
 
 StoredSettings defaultStoredSettings() {
   StoredSettings settings{};
@@ -449,6 +452,7 @@ bool applyCpuFrequencySetting(uint8_t index) {
 #endif
 
 void applyBrightness();
+void updatePowerSourceState();
 
 void noteUserActivity() {
   lastUserActivityMs = millis();
@@ -540,6 +544,7 @@ void updateSupplyVoltage(bool force = false) {
 
   supplyVoltage = readSupplyVoltage();
   lastSupplySampleMs = now;
+  updatePowerSourceState();
 }
 
 void formatSupplyVoltage(char *buffer, size_t bufferSize) {
@@ -549,6 +554,28 @@ void formatSupplyVoltage(char *buffer, size_t bufferSize) {
   }
 
   snprintf(buffer, bufferSize, "%.2fV", static_cast<double>(supplyVoltage));
+}
+
+void updatePowerSourceState() {
+  if (!std::isfinite(supplyVoltage)) {
+    return;
+  }
+
+  bool nextRunningOnBattery = runningOnBattery;
+  if (runningOnBattery) {
+    if (supplyVoltage >= kExternalPowerDetectOnVolts) {
+      nextRunningOnBattery = false;
+    }
+  } else if (supplyVoltage <= kExternalPowerDetectOffVolts) {
+    nextRunningOnBattery = true;
+  }
+
+  if (nextRunningOnBattery == runningOnBattery) {
+    return;
+  }
+
+  runningOnBattery = nextRunningOnBattery;
+  noteUserActivity();
 }
 
 void saveSettings(const StoredSettings &settings) {
@@ -669,9 +696,9 @@ const char *settingsItemDescription(SettingsItem item) {
     case SettingsItem::Brightness:
       return "Set the display backlight level.";
     case SettingsItem::BacklightTimeout:
-      return "Switch off the backlight after inactivity.";
+      return "Switch off the backlight after inactivity on battery.";
     case SettingsItem::SleepTimeout:
-      return "Put the system into energy-saving mode after inactivity.";
+      return "Put the system into energy-saving mode after inactivity on battery.";
     case SettingsItem::AngleMode:
       return "Choose RAD, GRD, or DEG.";
     case SettingsItem::StackLabels:
@@ -820,6 +847,9 @@ bool decodeRegisterKey(char keyPressed, uint8_t &index) {
       return true;
     case 'v':
       index = 14;
+      return true;
+    case 'u':
+      index = 15;
       return true;
     default:
       return false;
@@ -1010,6 +1040,10 @@ void updateInput() {
 
 void updateIdlePowerState() {
   if (settingsState.active) {
+    return;
+  }
+
+  if (!runningOnBattery) {
     return;
   }
 

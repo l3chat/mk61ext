@@ -90,7 +90,7 @@ struct CalculatorStack {
 
 class RpnCalculator {
 public:
-  static constexpr uint8_t kRegisterCount = 15;
+  static constexpr uint8_t kRegisterCount = 16;
   static constexpr size_t kEntryBufferSize = 64;
   static constexpr size_t kMaxMantissaDigits = 16;
 

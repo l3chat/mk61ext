@@ -38,7 +38,7 @@ These rows are reserved for mk61ext-specific features in the long term, but a fe
 | `b` | `SET NEXT` | Current firmware selects the next item in the dedicated settings screen; the longer-term extension slot is still open. |
 | `c` | `SET -` | Current firmware decreases or toggles the selected settings item; the longer-term extension slot is still open. |
 | `d` | `SET +` | Current firmware increases or toggles the selected settings item; the longer-term extension slot is still open. |
-| `e` | `SETTINGS` | Current firmware opens the settings screen; on that screen `e` saves staged brightness, idle-timeout, sleep-timeout, angle, label, and CPU-frequency changes to EEPROM. The longer-term extension slot is still open. |
+| `e` | `SETTINGS` | Current firmware opens the settings screen; on that screen `e` saves staged brightness, idle-timeout, sleep-timeout, angle, label, and CPU-frequency changes to EEPROM. The timeout list now reaches `15 min`, and those idle timeouts are only active on battery power. The longer-term extension slot is still open. |
 | `f` | `HELP` | Current firmware toggles help mode on this key outside settings; while the settings screen is open, the same key cancels staged changes and restores the earlier values. The longer-term extension slot is still open. |
 | `g` | *`EXT7`* | Reserved for mk61ext-specific features. |
 | `h` | *`EXT8`* | Reserved for mk61ext-specific features. |
@@ -64,8 +64,8 @@ This 6x5 block is the planned MK-61-style keyboard:
 | Raw key | Primary | What it does | `F`-shifted | What it does | `K`-shifted | What it does |
 | --- | --- | --- | --- | --- | --- | --- |
 | `p` | `K` | Prefix key that selects the `K` layer for the next keypress. | `—` | No second-level assignment planned here. | `—` | No second-level assignment planned here. |
-| `q` | `RCL` | Recall a register value into `X` while lifting the stack. Use `0`-`9`, or `. x y z v` for registers `a`-`e`. | *`DSNZ0`* | Decrement register `0` and branch if it stays non-zero. | `RCLI` | Indirect register recall through a pointer register while lifting the stack. The pointer value uses its whole-number part wrapped across registers `0`-`e`; pointer registers `4`-`6` pre-increment and `0`-`3` post-decrement. |
-| `r` | `STO` | Store `X` into a register. Use `0`-`9`, or `. x y z v` for registers `a`-`e`. | *`DSNZ1`* | Decrement register `1` and branch if it stays non-zero. | `STOI` | Indirect register store through a pointer register. The pointer value uses its whole-number part wrapped across registers `0`-`e`; pointer registers `4`-`6` pre-increment and `0`-`3` post-decrement. |
+| `q` | `RCL` | Recall a register value into `X` while lifting the stack. Use `0`-`9`, or `. x y z v u` for registers `a`-`f`. | *`DSNZ0`* | Decrement register `0` and branch if it stays non-zero. | `RCLI` | Indirect register recall through a pointer register while lifting the stack. The pointer value uses its whole-number part wrapped across registers `0`-`f`; pointer registers `4`-`6` pre-increment and `0`-`3` post-decrement. |
+| `r` | `STO` | Store `X` into a register. Use `0`-`9`, or `. x y z v u` for registers `a`-`f`. | *`DSNZ1`* | Decrement register `1` and branch if it stays non-zero. | `STOI` | Indirect register store through a pointer register. The pointer value uses its whole-number part wrapped across registers `0`-`f`; pointer registers `4`-`6` pre-increment and `0`-`3` post-decrement. |
 | `s` | *`GTO`* | Jump to the following program address. | *`DSNZ2`* | Decrement register `2` and branch if it stays non-zero. | *`JPI`* | Indirect jump using an address held in a register. |
 | `t` | *`GSB/SST`* | In calculator mode, single-step a program; in program mode, call a subroutine. | *`DSNZ3`* | Decrement register `3` and branch if it stays non-zero. | *`GSBI`* | Indirect subroutine call using an address held in a register. |
 

@@ -302,7 +302,7 @@ The user records them by pressing the command key and then the register key, but
 
 These are strong candidates for 1-byte commands, not 2-byte commands.
 
-Because there are only 15 exposed registers (`0`-`e`), a direct or indirect register operation can plausibly fit into a single byte by combining:
+Because there are now 16 exposed registers (`0`-`f`), a direct or indirect register operation can still fit naturally into a single byte by combining:
 
 - the operation family
 - the 4-bit register index
