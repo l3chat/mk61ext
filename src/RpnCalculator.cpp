@@ -176,6 +176,33 @@ bool RpnCalculator::storeIndirectRegister(uint8_t pointerIndex) {
   return true;
 }
 
+bool RpnCalculator::readRegister(uint8_t index, CalculatorValue &value) const {
+  if (hasError()) {
+    return false;
+  }
+
+  if (!isValidRegisterIndex(index)) {
+    return false;
+  }
+
+  value = registers_[index];
+  return true;
+}
+
+bool RpnCalculator::writeRegister(uint8_t index, CalculatorValue value) {
+  if (hasError()) {
+    return false;
+  }
+
+  if (!isValidRegisterIndex(index)) {
+    error_ = CalculatorError::DomainError;
+    return false;
+  }
+
+  registers_[index] = value;
+  return true;
+}
+
 void RpnCalculator::clearStackState() {
   stack_ = {0.0, 0.0, 0.0, 0.0};
   entering_ = false;

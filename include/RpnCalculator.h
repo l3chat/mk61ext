@@ -102,6 +102,8 @@ public:
   bool storeRegister(uint8_t index);
   bool recallIndirectRegister(uint8_t pointerIndex);
   bool storeIndirectRegister(uint8_t pointerIndex);
+  bool readRegister(uint8_t index, CalculatorValue &value) const;
+  bool writeRegister(uint8_t index, CalculatorValue value);
   void seedRandom(uint32_t seed);
   void setAngleMode(CalculatorAngleMode mode) { angleMode_ = mode; }
   CalculatorAngleMode angleMode() const { return angleMode_; }

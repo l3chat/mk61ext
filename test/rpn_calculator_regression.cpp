@@ -98,6 +98,24 @@ void expectRunnerError(const ProgramRunner &runner,
   }
 }
 
+void expectRegisterValue(const RpnCalculator &calculator,
+                         uint8_t index,
+                         CalculatorValue expected,
+                         const char *message) {
+  CalculatorValue actual = 0.0;
+  if (!calculator.readRegister(index, actual)) {
+    std::cerr << "FAIL: " << message << " (failed to read register "
+              << static_cast<unsigned>(index) << ")\n";
+    std::exit(1);
+  }
+
+  if (actual != expected) {
+    std::cerr << "FAIL: " << message << " (expected register value " << expected
+              << ", got " << actual << ")\n";
+    std::exit(1);
+  }
+}
+
 void press(RpnCalculator &calculator, CalculatorAction action, const char *message) {
   expectTrue(calculator.apply(action), message);
 }
@@ -976,6 +994,93 @@ void testProgramRunnerDirectJumpExecution() {
   expectEqual(calculator.stack().x, 1.0, "direct GTO should skip over the unreachable digit 9 path");
 }
 
+void testProgramRunnerDirectConditionalExecution() {
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x00, 0x0E, 0x5E, 0x06, 0x09, 0x50, 0x01, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading JP X=0 true-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(runner.start(vm), "runner should start for JP X=0 true-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "JP X=0 true-path program should halt");
+
+    expectFalse(runner.hasError(), "JP X=0 true-path should not set runner error");
+    expectEqualByte(runner.runAddress(), 8, "JP X=0 true-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 1.0, "JP X=0 should jump when X is zero");
+  }
+
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x01, 0x0E, 0x5E, 0x03, 0x09, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading JP X=0 false-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(runner.start(vm), "runner should start for JP X=0 false-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "JP X=0 false-path program should halt");
+
+    expectFalse(runner.hasError(), "JP X=0 false-path should ignore the invalid untaken target");
+    expectEqualByte(runner.runAddress(), 6, "JP X=0 false-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 9.0, "JP X=0 should fall through when X is nonzero");
+  }
+
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x01, 0x0B, 0x0E, 0x5C, 0x07, 0x09, 0x50, 0x02, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading JP X<0 true-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(runner.start(vm), "runner should start for JP X<0 true-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "JP X<0 true-path program should halt");
+
+    expectFalse(runner.hasError(), "JP X<0 true-path should not set runner error");
+    expectEqualByte(runner.runAddress(), 9, "JP X<0 true-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 2.0, "JP X<0 should jump when X is negative");
+  }
+
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x00, 0x0E, 0x59, 0x06, 0x09, 0x50, 0x03, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading JP X>=0 true-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(runner.start(vm), "runner should start for JP X>=0 true-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "JP X>=0 true-path program should halt");
+
+    expectFalse(runner.hasError(), "JP X>=0 true-path should not set runner error");
+    expectEqualByte(runner.runAddress(), 8, "JP X>=0 true-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 3.0, "JP X>=0 should jump when X is zero or positive");
+  }
+
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x00, 0x0E, 0x57, 0x03, 0x09, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading JP X<>0 false-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(runner.start(vm), "runner should start for JP X<>0 false-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "JP X<>0 false-path program should halt");
+
+    expectFalse(runner.hasError(), "JP X<>0 false-path should ignore the invalid untaken target");
+    expectEqualByte(runner.runAddress(), 6, "JP X<>0 false-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 9.0, "JP X<>0 should fall through when X is zero");
+  }
+}
+
 void testProgramRunnerRegisterExecution() {
   ProgramVm vm;
   const uint8_t program[] = {0x05, 0x61, 0x03, 0x0E, 0x04, 0x12, 0x41, 0x50};
@@ -992,6 +1097,74 @@ void testProgramRunnerRegisterExecution() {
   expectFalse(runner.hasError(), "register execution should not set runner error");
   expectEqual(stack.x, 5.0, "RCL 1 should recall 5 into X");
   expectEqual(stack.y, 12.0, "RCL 1 should lift the previous result into Y");
+}
+
+void testProgramRunnerDsnzExecution() {
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x5D, 0x04, 0x09, 0x50, 0x01, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading DSNZ0 true-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(calculator.writeRegister(0, 2.0), "writing register 0 before DSNZ0 should succeed");
+    expectTrue(runner.start(vm), "runner should start for DSNZ0 true-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "DSNZ0 true-path program should halt");
+
+    expectFalse(runner.hasError(), "DSNZ0 true-path should not set runner error");
+    expectEqual(calculator.stack().x, 1.0, "DSNZ0 should jump while the decremented counter stays nonzero");
+    expectRegisterValue(calculator, 0, 1.0, "DSNZ0 should decrement register 0 before jumping");
+  }
+
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x5D, 0x01, 0x09, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading DSNZ0 false-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(calculator.writeRegister(0, 1.0), "writing register 0 before DSNZ0 false-path should succeed");
+    expectTrue(runner.start(vm), "runner should start for DSNZ0 false-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "DSNZ0 false-path program should halt");
+
+    expectFalse(runner.hasError(), "DSNZ0 false-path should ignore the invalid untaken target");
+    expectEqual(calculator.stack().x, 9.0, "DSNZ0 should fall through when the decremented counter reaches zero");
+    expectRegisterValue(calculator, 0, 0.0, "DSNZ0 should decrement register 0 to zero on the fall-through path");
+  }
+
+  const struct {
+    uint8_t opcode;
+    uint8_t index;
+  } cases[] = {
+      {0x5B, 1},
+      {0x58, 2},
+      {0x5A, 3},
+  };
+
+  for (const auto &caseData : cases) {
+    ProgramVm vm;
+    const uint8_t program[] = {caseData.opcode, 0x04, 0x09, 0x50, 0x01, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading DSNZ register-selection program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(calculator.writeRegister(caseData.index, 2.0),
+               "writing DSNZ register-selection counter should succeed");
+    expectTrue(runner.start(vm), "runner should start for DSNZ register-selection test");
+    runProgramUntilStop(runner, vm, calculator, 16, "DSNZ register-selection program should halt");
+
+    expectFalse(runner.hasError(), "DSNZ register-selection should not set runner error");
+    expectEqual(calculator.stack().x, 1.0,
+                "DSNZ register-selection should jump while the decremented counter stays nonzero");
+    expectRegisterValue(calculator, caseData.index, 1.0,
+                        "DSNZ register-selection should decrement the expected counter register");
+  }
 }
 
 void testProgramRunnerSubroutineExecution() {
@@ -1088,7 +1261,7 @@ void testProgramRunnerCallStackOverflowStops() {
 
 void testProgramRunnerUnsupportedControlStops() {
   ProgramVm vm;
-  const uint8_t program[] = {0x57, 0x20};
+  const uint8_t program[] = {0x80};
   expectTrue(vm.loadProgram(program, sizeof(program)),
              "loading unsupported control-flow program should succeed");
 
@@ -1153,7 +1326,9 @@ int main() {
   testProgramRecorderErrors();
   testProgramRunnerLinearExecution();
   testProgramRunnerDirectJumpExecution();
+  testProgramRunnerDirectConditionalExecution();
   testProgramRunnerRegisterExecution();
+  testProgramRunnerDsnzExecution();
   testProgramRunnerSubroutineExecution();
   testProgramRunnerNestedSubroutineExecution();
   testProgramRunnerReturnStopsExecution();

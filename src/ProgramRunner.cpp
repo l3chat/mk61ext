@@ -1,6 +1,10 @@
 #include "ProgramRunner.h"
 
+#include <cmath>
+
 namespace {
+
+constexpr CalculatorValue kProgramConditionZeroEpsilon = 1e-12;
 
 CalculatorAction calculatorActionForOpcode(uint8_t opcode) {
   switch (opcode) {
@@ -108,6 +112,46 @@ CalculatorAction calculatorActionForOpcode(uint8_t opcode) {
       return CalculatorAction::RandomValue;
     default:
       return CalculatorAction::None;
+  }
+}
+
+CalculatorValue normalizedConditionValue(CalculatorValue value) {
+  return (std::fabs(value) < kProgramConditionZeroEpsilon) ? 0.0 : value;
+}
+
+bool shouldTakeDirectConditional(uint8_t opcode, CalculatorValue xValue) {
+  const CalculatorValue normalizedX = normalizedConditionValue(xValue);
+
+  switch (opcode) {
+    case 0x57:
+      return normalizedX != 0.0;
+    case 0x59:
+      return normalizedX >= 0.0;
+    case 0x5C:
+      return normalizedX < 0.0;
+    case 0x5E:
+      return normalizedX == 0.0;
+    default:
+      return false;
+  }
+}
+
+bool dsnzRegisterIndexForOpcode(uint8_t opcode, uint8_t &registerIndex) {
+  switch (opcode) {
+    case 0x5D:
+      registerIndex = 0;
+      return true;
+    case 0x5B:
+      registerIndex = 1;
+      return true;
+    case 0x58:
+      registerIndex = 2;
+      return true;
+    case 0x5A:
+      registerIndex = 3;
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -292,6 +336,57 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
       case 0x54:
         runAddress_ = nextAddress;
         return true;
+      case 0x57:
+      case 0x59:
+      case 0x5C:
+      case 0x5E:
+        if (shouldTakeDirectConditional(step.opcode, calculator.stack().x)) {
+          if (!isValidTargetAddress(vm, step.operand)) {
+            fail(ProgramRunnerError::InvalidTarget);
+            return false;
+          }
+
+          runAddress_ = step.operand;
+          return true;
+        }
+
+        runAddress_ = nextAddress;
+        return true;
+      case 0x58:
+      case 0x5A:
+      case 0x5B:
+      case 0x5D: {
+        uint8_t registerIndex = 0;
+        if (!dsnzRegisterIndexForOpcode(step.opcode, registerIndex)) {
+          fail(ProgramRunnerError::InvalidStep);
+          return false;
+        }
+
+        CalculatorValue registerValue = 0.0;
+        if (!calculator.readRegister(registerIndex, registerValue)) {
+          fail(ProgramRunnerError::CalculatorError);
+          return false;
+        }
+
+        registerValue -= 1.0;
+        if (!calculator.writeRegister(registerIndex, registerValue)) {
+          fail(ProgramRunnerError::CalculatorError);
+          return false;
+        }
+
+        if (normalizedConditionValue(registerValue) != 0.0) {
+          if (!isValidTargetAddress(vm, step.operand)) {
+            fail(ProgramRunnerError::InvalidTarget);
+            return false;
+          }
+
+          runAddress_ = step.operand;
+          return true;
+        }
+
+        runAddress_ = nextAddress;
+        return true;
+      }
       default:
         fail(ProgramRunnerError::UnsupportedControl);
         return false;
