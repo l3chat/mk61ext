@@ -1,5 +1,6 @@
 #include "RpnCalculator.h"
 #include "ProgramRecorder.h"
+#include "ProgramRunner.h"
 #include "ProgramVm.h"
 
 #include <cmath>
@@ -83,6 +84,16 @@ void expectRecorderError(const ProgramRecorder &recorder,
   if (recorder.error() != expected) {
     std::cerr << "FAIL: " << message << " (expected error " << static_cast<int>(expected)
               << ", got " << static_cast<int>(recorder.error()) << ")\n";
+    std::exit(1);
+  }
+}
+
+void expectRunnerError(const ProgramRunner &runner,
+                       ProgramRunnerError expected,
+                       const char *message) {
+  if (runner.error() != expected) {
+    std::cerr << "FAIL: " << message << " (expected error " << static_cast<int>(expected)
+              << ", got " << static_cast<int>(runner.error()) << ")\n";
     std::exit(1);
   }
 }
@@ -914,6 +925,109 @@ void testProgramRecorderErrors() {
                  "overflowed two-byte append should leave program length unchanged");
 }
 
+void runProgramUntilStop(ProgramRunner &runner,
+                         const ProgramVm &vm,
+                         RpnCalculator &calculator,
+                         uint16_t maxSteps,
+                         const char *message) {
+  uint16_t steps = 0;
+  while (runner.isRunning() && (steps < maxSteps)) {
+    (void)runner.step(vm, calculator);
+    ++steps;
+  }
+
+  if (runner.isRunning()) {
+    fail(message);
+  }
+}
+
+void testProgramRunnerLinearExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x01, 0x0E, 0x02, 0x10, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading linear execution program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start on a valid program");
+  runProgramUntilStop(runner, vm, calculator, 16, "linear program should stop promptly");
+
+  expectFalse(runner.hasError(), "linear program should finish without runner errors");
+  expectEqualByte(runner.runAddress(), 5, "HALT should leave run address after the halt step");
+  expectEqual(calculator.stack().x, 3.0, "1 ENTER 2 + should leave 3 in X");
+}
+
+void testProgramRunnerRegisterExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x05, 0x61, 0x03, 0x0E, 0x04, 0x12, 0x41, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading register execution program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start for register execution");
+  runProgramUntilStop(runner, vm, calculator, 16, "register execution program should halt");
+
+  const CalculatorStack stack = calculator.stack();
+  expectFalse(runner.hasError(), "register execution should not set runner error");
+  expectEqual(stack.x, 5.0, "RCL 1 should recall 5 into X");
+  expectEqual(stack.y, 12.0, "RCL 1 should lift the previous result into Y");
+}
+
+void testProgramRunnerReturnStopsExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x01, 0x52, 0x02};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading RETURN stop program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start for RETURN stop test");
+  runProgramUntilStop(runner, vm, calculator, 8, "RETURN stop program should halt");
+
+  expectFalse(runner.hasError(), "RETURN should stop cleanly in the basic runner");
+  expectEqualByte(runner.runAddress(), 2, "RETURN should leave run address after the return step");
+  expectEqual(calculator.stack().x, 1.0, "RETURN should stop before the following digit executes");
+}
+
+void testProgramRunnerUnsupportedControlStops() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x51, 0x20};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading unsupported control-flow program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start before unsupported control test");
+  expectFalse(runner.step(vm, calculator),
+              "unsupported control flow should stop execution with an error");
+  expectFalse(runner.isRunning(), "runner should stop after unsupported control");
+  expectRunnerError(runner, ProgramRunnerError::UnsupportedControl,
+                    "unsupported control flow should report UnsupportedControl");
+  expectEqualByte(runner.runAddress(), 0, "unsupported control should leave run address on failing step");
+}
+
+void testProgramRunnerInvalidStepStops() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x51};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading truncated program step should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start before invalid-step test");
+  expectFalse(runner.step(vm, calculator), "truncated step should stop execution with an error");
+  expectFalse(runner.isRunning(), "runner should stop after invalid step");
+  expectRunnerError(runner, ProgramRunnerError::InvalidStep,
+                    "truncated step should report InvalidStep");
+  expectEqualByte(runner.runAddress(), 0, "invalid step should leave run address on failing step");
+}
+
 }  // namespace
 
 int main() {
@@ -944,6 +1058,11 @@ int main() {
   testProgramRecorderRegisterAndAddressOperands();
   testProgramRecorderShiftedFamilies();
   testProgramRecorderErrors();
+  testProgramRunnerLinearExecution();
+  testProgramRunnerRegisterExecution();
+  testProgramRunnerReturnStopsExecution();
+  testProgramRunnerUnsupportedControlStops();
+  testProgramRunnerInvalidStepStops();
   std::cout << "RpnCalculator regression tests passed.\n";
   return 0;
 }

@@ -93,6 +93,7 @@
 #include "Keypad.h"
 #include "Mk61extDisplay.h"
 #include "ProgramRecorder.h"
+#include "ProgramRunner.h"
 #include "ProgramVm.h"
 #include "RpnCalculator.h"
 
@@ -152,6 +153,7 @@ constexpr int kHelpTextWidth = 126;
 constexpr int kProgramListFirstY = 10;
 constexpr int kProgramListRowHeight = 9;
 constexpr uint8_t kProgramListVisibleRows = 6;
+constexpr uint8_t kProgramRunStepsPerLoop = 8;
 constexpr int kSettingsFirstRowY = 10;
 constexpr int kSettingsRowHeight = 7;
 constexpr int kSettingsCursorBoxWidth = 6;
@@ -282,6 +284,7 @@ ExternalEEPROM eeprom;
 RpnCalculator calculator;
 ProgramVm programVm;
 ProgramRecorder programRecorder;
+ProgramRunner programRunner;
 Mk61extDisplay display(
     U8G2_R0,
     kDisplayClockPin,
@@ -742,6 +745,7 @@ void normalizeProgramEditAddress() {
 }
 
 void enterProgramMode() {
+  programRunner.stop();
   programMode = true;
   programRecorder.reset();
   normalizeProgramEditAddress();
@@ -1018,8 +1022,19 @@ void handleProgramPressedKey(char keyPressed) {
 }
 
 void handlePressedKey(char keyPressed) {
+  const bool runControlContext =
+      (pendingRegisterOperation == PendingRegisterOperation::None) &&
+      (activeCalculatorPrefix() == CalculatorPrefix::None);
+
   if (settingsState.active) {
     handleSettingsPressedKey(keyPressed);
+    return;
+  }
+
+  if (programRunner.isRunning()) {
+    if (runControlContext && (keyPressed == 'o')) {
+      programRunner.stop();
+    }
     return;
   }
 
@@ -1047,6 +1062,18 @@ void handlePressedKey(char keyPressed) {
     enterSettingsMode();
     return;
   }
+
+  if (runControlContext && (keyPressed == 'o')) {
+    (void)programRunner.start(programVm);
+    return;
+  }
+
+  if (runControlContext && (keyPressed == 'n')) {
+    programRunner.resetRunAddress();
+    return;
+  }
+
+  programRunner.clearError();
 
   if (handleRegisterOperationKey(keyPressed)) {
     return;
@@ -1099,8 +1126,28 @@ void updateInput() {
   }
 }
 
+void updateProgramExecution() {
+  if (!programRunner.isRunning()) {
+    return;
+  }
+
+  for (uint8_t step = 0; step < kProgramRunStepsPerLoop; ++step) {
+    if (!programRunner.isRunning()) {
+      break;
+    }
+
+    (void)programRunner.step(programVm, calculator);
+  }
+
+  lastUserActivityMs = millis();
+}
+
 void updateIdlePowerState() {
   if (settingsState.active) {
+    return;
+  }
+
+  if (programRunner.isRunning()) {
     return;
   }
 
@@ -1296,6 +1343,16 @@ void drawStatusBar() {
     } else {
       snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X", editAddress, programLength);
     }
+    formatStatusRightText(rightBuffer, sizeof(rightBuffer));
+  } else if (programRunner.hasError()) {
+    snprintf(leftBuffer,
+             sizeof(leftBuffer),
+             "VM %s P%02X",
+             programRunnerErrorShortName(programRunner.error()),
+             static_cast<unsigned>(programRunner.runAddress()));
+    formatStatusRightText(rightBuffer, sizeof(rightBuffer));
+  } else if (programRunner.isRunning()) {
+    snprintf(leftBuffer, sizeof(leftBuffer), "RUN P%02X", static_cast<unsigned>(programRunner.runAddress()));
     formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (calculator.hasError()) {
     snprintf(leftBuffer, sizeof(leftBuffer), "ERR %s", calculator.errorMessage());
@@ -1596,6 +1653,7 @@ void setup() {
 void loop() {
   display.clearBuffer();
   updateInput();
+  updateProgramExecution();
   updateSupplyVoltage();
   updateIdlePowerState();
   if (settingsState.active) {
