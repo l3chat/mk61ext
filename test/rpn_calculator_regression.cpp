@@ -1081,6 +1081,121 @@ void testProgramRunnerDirectConditionalExecution() {
   }
 }
 
+void testProgramRunnerIndirectJumpExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x82, 0x09, 0x50, 0x01, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading indirect-jump execution program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(calculator.writeRegister(2, 259.7), "writing wrapped indirect jump target should succeed");
+  expectTrue(runner.start(vm), "runner should start for indirect-jump execution");
+  runProgramUntilStop(runner, vm, calculator, 16, "indirect-jump program should halt");
+
+  expectFalse(runner.hasError(), "indirect JPI execution should not set runner error");
+  expectEqualByte(runner.runAddress(), 5,
+                  "final HALT after an indirect jump should leave run address after the halt step");
+  expectEqual(calculator.stack().x, 1.0,
+              "indirect JPI should truncate and wrap the target register into byte-address space");
+}
+
+void testProgramRunnerIndirectConditionalExecution() {
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x01, 0x0E, 0x72, 0x09, 0x50, 0x02, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading indirect JP X<>0 true-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(calculator.writeRegister(2, 5.0), "writing indirect JP X<>0 target should succeed");
+    expectTrue(runner.start(vm), "runner should start for indirect JP X<>0 true-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "indirect JP X<>0 true-path program should halt");
+
+    expectFalse(runner.hasError(), "indirect JP X<>0 true-path should not set runner error");
+    expectEqualByte(runner.runAddress(), 7, "indirect JP X<>0 true-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 2.0, "indirect JP X<>0 should jump when X is nonzero");
+  }
+
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x00, 0x0E, 0x90, 0x09, 0x50, 0x03, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading indirect JP X>=0 true-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(calculator.writeRegister(0, 5.0), "writing indirect JP X>=0 target should succeed");
+    expectTrue(runner.start(vm), "runner should start for indirect JP X>=0 true-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "indirect JP X>=0 true-path program should halt");
+
+    expectFalse(runner.hasError(), "indirect JP X>=0 true-path should not set runner error");
+    expectEqualByte(runner.runAddress(), 7, "indirect JP X>=0 true-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 3.0, "indirect JP X>=0 should jump when X is zero or positive");
+  }
+
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x01, 0x0B, 0x0E, 0xC3, 0x09, 0x50, 0x04, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading indirect JP X<0 true-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(calculator.writeRegister(3, 6.0), "writing indirect JP X<0 target should succeed");
+    expectTrue(runner.start(vm), "runner should start for indirect JP X<0 true-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "indirect JP X<0 true-path program should halt");
+
+    expectFalse(runner.hasError(), "indirect JP X<0 true-path should not set runner error");
+    expectEqualByte(runner.runAddress(), 8, "indirect JP X<0 true-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 4.0, "indirect JP X<0 should jump when X is negative");
+  }
+
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x00, 0x0E, 0xE4, 0x09, 0x50, 0x05, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading indirect JP X=0 true-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(calculator.writeRegister(4, 5.0), "writing indirect JP X=0 target should succeed");
+    expectTrue(runner.start(vm), "runner should start for indirect JP X=0 true-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "indirect JP X=0 true-path program should halt");
+
+    expectFalse(runner.hasError(), "indirect JP X=0 true-path should not set runner error");
+    expectEqualByte(runner.runAddress(), 7, "indirect JP X=0 true-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 5.0, "indirect JP X=0 should jump when X is zero");
+  }
+
+  {
+    ProgramVm vm;
+    const uint8_t program[] = {0x00, 0x0E, 0x70, 0x51, 0x05, 0x09, 0x50};
+    expectTrue(vm.loadProgram(program, sizeof(program)),
+               "loading indirect JP X<>0 false-path program should succeed");
+
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(calculator.writeRegister(0, 4.0),
+               "writing untaken invalid indirect conditional target should succeed");
+    expectTrue(runner.start(vm), "runner should start for indirect JP X<>0 false-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "indirect JP X<>0 false-path program should halt");
+
+    expectFalse(runner.hasError(),
+                "indirect untaken conditional should ignore an invalid target in the selector register");
+    expectEqualByte(runner.runAddress(), 7, "indirect JP X<>0 false-path HALT should end at program length");
+    expectEqual(calculator.stack().x, 9.0,
+                "indirect JP X<>0 should fall through when X is zero even if the selector register holds an invalid target");
+  }
+}
+
 void testProgramRunnerRegisterExecution() {
   ProgramVm vm;
   const uint8_t program[] = {0x05, 0x61, 0x03, 0x0E, 0x04, 0x12, 0x41, 0x50};
@@ -1097,6 +1212,26 @@ void testProgramRunnerRegisterExecution() {
   expectFalse(runner.hasError(), "register execution should not set runner error");
   expectEqual(stack.x, 5.0, "RCL 1 should recall 5 into X");
   expectEqual(stack.y, 12.0, "RCL 1 should lift the previous result into Y");
+}
+
+void testProgramRunnerIndirectSubroutineExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0xA1, 0x50, 0x01, 0x52};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading indirect subroutine execution program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(calculator.writeRegister(1, -254.2),
+             "writing wrapped indirect subroutine target should succeed");
+  expectTrue(runner.start(vm), "runner should start for indirect subroutine execution");
+  runProgramUntilStop(runner, vm, calculator, 16, "indirect subroutine program should halt");
+
+  expectFalse(runner.hasError(), "indirect GSBI execution should not set runner error");
+  expectEqualByte(runner.runAddress(), 2, "HALT after an indirect subroutine should leave run address after the halt");
+  expectEqual(calculator.stack().x, 1.0,
+              "indirect GSBI should truncate and wrap the selector-register target before calling");
 }
 
 void testProgramRunnerDsnzExecution() {
@@ -1237,6 +1372,26 @@ void testProgramRunnerInvalidTargetStops() {
   expectEqualByte(runner.runAddress(), 0, "invalid target should leave run address on the failing step");
 }
 
+void testProgramRunnerIndirectInvalidTargetStops() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x82, 0x51, 0x04, 0x50, 0x01, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading indirect invalid-target program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(calculator.writeRegister(2, 2.9), "writing indirect invalid target should succeed");
+  expectTrue(runner.start(vm), "runner should start before indirect invalid-target test");
+  expectFalse(runner.step(vm, calculator),
+              "invalid indirect control-flow target should stop execution with an error");
+  expectFalse(runner.isRunning(), "runner should stop after invalid indirect target");
+  expectRunnerError(runner, ProgramRunnerError::InvalidTarget,
+                    "invalid indirect control-flow target should report InvalidTarget");
+  expectEqualByte(runner.runAddress(), 0,
+                  "invalid indirect target should leave run address on the failing step");
+}
+
 void testProgramRunnerCallStackOverflowStops() {
   ProgramVm vm;
   const uint8_t program[] = {0x53, 0x00};
@@ -1257,24 +1412,6 @@ void testProgramRunnerCallStackOverflowStops() {
   expectRunnerError(runner, ProgramRunnerError::CallStackOverflow,
                     "recursive GSB should report CallStackOverflow");
   expectEqualByte(runner.runAddress(), 0, "call-stack overflow should leave run address on the failing step");
-}
-
-void testProgramRunnerUnsupportedControlStops() {
-  ProgramVm vm;
-  const uint8_t program[] = {0x80};
-  expectTrue(vm.loadProgram(program, sizeof(program)),
-             "loading unsupported control-flow program should succeed");
-
-  ProgramRunner runner;
-  RpnCalculator calculator;
-
-  expectTrue(runner.start(vm), "runner should start before unsupported control test");
-  expectFalse(runner.step(vm, calculator),
-              "unsupported control flow should stop execution with an error");
-  expectFalse(runner.isRunning(), "runner should stop after unsupported control");
-  expectRunnerError(runner, ProgramRunnerError::UnsupportedControl,
-                    "unsupported control flow should report UnsupportedControl");
-  expectEqualByte(runner.runAddress(), 0, "unsupported control should leave run address on failing step");
 }
 
 void testProgramRunnerInvalidStepStops() {
@@ -1327,14 +1464,17 @@ int main() {
   testProgramRunnerLinearExecution();
   testProgramRunnerDirectJumpExecution();
   testProgramRunnerDirectConditionalExecution();
+  testProgramRunnerIndirectJumpExecution();
+  testProgramRunnerIndirectConditionalExecution();
   testProgramRunnerRegisterExecution();
+  testProgramRunnerIndirectSubroutineExecution();
   testProgramRunnerDsnzExecution();
   testProgramRunnerSubroutineExecution();
   testProgramRunnerNestedSubroutineExecution();
   testProgramRunnerReturnStopsExecution();
   testProgramRunnerInvalidTargetStops();
+  testProgramRunnerIndirectInvalidTargetStops();
   testProgramRunnerCallStackOverflowStops();
-  testProgramRunnerUnsupportedControlStops();
   testProgramRunnerInvalidStepStops();
   std::cout << "RpnCalculator regression tests passed.\n";
   return 0;

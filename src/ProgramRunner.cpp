@@ -155,6 +155,50 @@ bool dsnzRegisterIndexForOpcode(uint8_t opcode, uint8_t &registerIndex) {
   }
 }
 
+bool coerceToIndirectProgramAddress(CalculatorValue value, uint8_t &address) {
+  if (!std::isfinite(value)) {
+    return false;
+  }
+
+  CalculatorValue wrapped =
+      std::fmod(std::trunc(value), static_cast<CalculatorValue>(ProgramVm::kProgramCapacity));
+  if (wrapped < 0.0) {
+    wrapped += static_cast<CalculatorValue>(ProgramVm::kProgramCapacity);
+  }
+
+  address = static_cast<uint8_t>(wrapped);
+  return true;
+}
+
+bool readIndirectTargetAddress(RpnCalculator &calculator, uint8_t selector, uint8_t &targetAddress) {
+  CalculatorValue targetValue = 0.0;
+  if (!calculator.readRegister(selector, targetValue)) {
+    return false;
+  }
+
+  return coerceToIndirectProgramAddress(targetValue, targetAddress);
+}
+
+bool shouldTakeIndirectConditional(uint8_t opcode, CalculatorValue xValue) {
+  if ((opcode >= 0x70) && (opcode <= 0x7F)) {
+    return shouldTakeDirectConditional(0x57, xValue);
+  }
+
+  if ((opcode >= 0x90) && (opcode <= 0x9F)) {
+    return shouldTakeDirectConditional(0x59, xValue);
+  }
+
+  if ((opcode >= 0xC0) && (opcode <= 0xCF)) {
+    return shouldTakeDirectConditional(0x5C, xValue);
+  }
+
+  if ((opcode >= 0xE0) && (opcode <= 0xEF)) {
+    return shouldTakeDirectConditional(0x5E, xValue);
+  }
+
+  return false;
+}
+
 }  // namespace
 
 const char *programRunnerErrorShortName(ProgramRunnerError error) {
@@ -404,8 +448,63 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
   }
 
   if (step.opcode <= 0xAF) {
-    fail(ProgramRunnerError::UnsupportedControl);
-    return false;
+    const uint8_t selector = step.opcode & 0x0F;
+
+    if ((step.opcode >= 0x80) && (step.opcode <= 0x8F)) {
+      uint8_t targetAddress = 0;
+      if (!readIndirectTargetAddress(calculator, selector, targetAddress)) {
+        fail(ProgramRunnerError::CalculatorError);
+        return false;
+      }
+
+      if (!isValidTargetAddress(vm, targetAddress)) {
+        fail(ProgramRunnerError::InvalidTarget);
+        return false;
+      }
+
+      runAddress_ = targetAddress;
+      return true;
+    }
+
+    if ((step.opcode >= 0xA0) && (step.opcode <= 0xAF)) {
+      uint8_t targetAddress = 0;
+      if (!readIndirectTargetAddress(calculator, selector, targetAddress)) {
+        fail(ProgramRunnerError::CalculatorError);
+        return false;
+      }
+
+      if (!isValidTargetAddress(vm, targetAddress)) {
+        fail(ProgramRunnerError::InvalidTarget);
+        return false;
+      }
+
+      if (!pushReturnAddress(nextAddress)) {
+        fail(ProgramRunnerError::CallStackOverflow);
+        return false;
+      }
+
+      runAddress_ = targetAddress;
+      return true;
+    }
+
+    if (shouldTakeIndirectConditional(step.opcode, calculator.stack().x)) {
+      uint8_t targetAddress = 0;
+      if (!readIndirectTargetAddress(calculator, selector, targetAddress)) {
+        fail(ProgramRunnerError::CalculatorError);
+        return false;
+      }
+
+      if (!isValidTargetAddress(vm, targetAddress)) {
+        fail(ProgramRunnerError::InvalidTarget);
+        return false;
+      }
+
+      runAddress_ = targetAddress;
+      return true;
+    }
+
+    runAddress_ = nextAddress;
+    return true;
   }
 
   if (step.opcode <= 0xBF) {
@@ -419,14 +518,51 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
   }
 
   if (step.opcode <= 0xCF) {
-    fail(ProgramRunnerError::UnsupportedControl);
-    return false;
+    if (shouldTakeIndirectConditional(step.opcode, calculator.stack().x)) {
+      uint8_t targetAddress = 0;
+      if (!readIndirectTargetAddress(calculator, step.opcode & 0x0F, targetAddress)) {
+        fail(ProgramRunnerError::CalculatorError);
+        return false;
+      }
+
+      if (!isValidTargetAddress(vm, targetAddress)) {
+        fail(ProgramRunnerError::InvalidTarget);
+        return false;
+      }
+
+      runAddress_ = targetAddress;
+      return true;
+    }
+
+    runAddress_ = nextAddress;
+    return true;
   }
 
   if (step.opcode <= 0xDF) {
     if (!calculator.recallIndirectRegister(step.opcode & 0x0F)) {
       fail(ProgramRunnerError::CalculatorError);
       return false;
+    }
+
+    runAddress_ = nextAddress;
+    return true;
+  }
+
+  if (step.opcode <= 0xEF) {
+    if (shouldTakeIndirectConditional(step.opcode, calculator.stack().x)) {
+      uint8_t targetAddress = 0;
+      if (!readIndirectTargetAddress(calculator, step.opcode & 0x0F, targetAddress)) {
+        fail(ProgramRunnerError::CalculatorError);
+        return false;
+      }
+
+      if (!isValidTargetAddress(vm, targetAddress)) {
+        fail(ProgramRunnerError::InvalidTarget);
+        return false;
+      }
+
+      runAddress_ = targetAddress;
+      return true;
     }
 
     runAddress_ = nextAddress;
