@@ -958,6 +958,24 @@ void testProgramRunnerLinearExecution() {
   expectEqual(calculator.stack().x, 3.0, "1 ENTER 2 + should leave 3 in X");
 }
 
+void testProgramRunnerDirectJumpExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x51, 0x04, 0x09, 0x50, 0x01, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading direct-jump execution program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start for direct-jump execution");
+  runProgramUntilStop(runner, vm, calculator, 16, "direct-jump program should halt");
+
+  expectFalse(runner.hasError(), "direct GTO execution should not set runner error");
+  expectEqualByte(runner.runAddress(), 6,
+                  "final HALT after a direct jump should leave run address after the halt step");
+  expectEqual(calculator.stack().x, 1.0, "direct GTO should skip over the unreachable digit 9 path");
+}
+
 void testProgramRunnerRegisterExecution() {
   ProgramVm vm;
   const uint8_t program[] = {0x05, 0x61, 0x03, 0x0E, 0x04, 0x12, 0x41, 0x50};
@@ -974,6 +992,42 @@ void testProgramRunnerRegisterExecution() {
   expectFalse(runner.hasError(), "register execution should not set runner error");
   expectEqual(stack.x, 5.0, "RCL 1 should recall 5 into X");
   expectEqual(stack.y, 12.0, "RCL 1 should lift the previous result into Y");
+}
+
+void testProgramRunnerSubroutineExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x53, 0x03, 0x50, 0x01, 0x52};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading direct subroutine execution program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start for subroutine execution");
+  runProgramUntilStop(runner, vm, calculator, 16, "direct subroutine program should halt");
+
+  expectFalse(runner.hasError(), "direct subroutine execution should not set runner error");
+  expectEqualByte(runner.runAddress(), 3, "HALT after a subroutine should leave run address after the halt");
+  expectEqual(calculator.stack().x, 1.0, "GSB should execute the subroutine body before returning to HALT");
+}
+
+void testProgramRunnerNestedSubroutineExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x53, 0x03, 0x50, 0x02, 0x0E, 0x53, 0x08, 0x52, 0x03, 0x10, 0x52};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading nested subroutine execution program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start for nested subroutine execution");
+  runProgramUntilStop(runner, vm, calculator, 32, "nested subroutine program should halt");
+
+  expectFalse(runner.hasError(), "nested subroutine execution should not set runner error");
+  expectEqualByte(runner.runAddress(), 3,
+                  "HALT after nested subroutines should leave run address after the halt");
+  expectEqual(calculator.stack().x, 5.0,
+              "nested GSB/RETURN execution should preserve return order and compute 2 + 3");
 }
 
 void testProgramRunnerReturnStopsExecution() {
@@ -993,9 +1047,48 @@ void testProgramRunnerReturnStopsExecution() {
   expectEqual(calculator.stack().x, 1.0, "RETURN should stop before the following digit executes");
 }
 
+void testProgramRunnerInvalidTargetStops() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x51, 0x01, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading invalid-target program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start before invalid-target test");
+  expectFalse(runner.step(vm, calculator), "invalid control-flow target should stop execution with an error");
+  expectFalse(runner.isRunning(), "runner should stop after invalid target");
+  expectRunnerError(runner, ProgramRunnerError::InvalidTarget,
+                    "invalid control-flow target should report InvalidTarget");
+  expectEqualByte(runner.runAddress(), 0, "invalid target should leave run address on the failing step");
+}
+
+void testProgramRunnerCallStackOverflowStops() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x53, 0x00};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading recursive GSB program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start before call-stack overflow test");
+  for (uint8_t step = 0; step < 64; ++step) {
+    if (!runner.step(vm, calculator)) {
+      break;
+    }
+  }
+
+  expectFalse(runner.isRunning(), "runner should stop after call-stack overflow");
+  expectRunnerError(runner, ProgramRunnerError::CallStackOverflow,
+                    "recursive GSB should report CallStackOverflow");
+  expectEqualByte(runner.runAddress(), 0, "call-stack overflow should leave run address on the failing step");
+}
+
 void testProgramRunnerUnsupportedControlStops() {
   ProgramVm vm;
-  const uint8_t program[] = {0x51, 0x20};
+  const uint8_t program[] = {0x57, 0x20};
   expectTrue(vm.loadProgram(program, sizeof(program)),
              "loading unsupported control-flow program should succeed");
 
@@ -1059,8 +1152,13 @@ int main() {
   testProgramRecorderShiftedFamilies();
   testProgramRecorderErrors();
   testProgramRunnerLinearExecution();
+  testProgramRunnerDirectJumpExecution();
   testProgramRunnerRegisterExecution();
+  testProgramRunnerSubroutineExecution();
+  testProgramRunnerNestedSubroutineExecution();
   testProgramRunnerReturnStopsExecution();
+  testProgramRunnerInvalidTargetStops();
+  testProgramRunnerCallStackOverflowStops();
   testProgramRunnerUnsupportedControlStops();
   testProgramRunnerInvalidStepStops();
   std::cout << "RpnCalculator regression tests passed.\n";

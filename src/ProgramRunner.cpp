@@ -119,10 +119,14 @@ const char *programRunnerErrorShortName(ProgramRunnerError error) {
       return "";
     case ProgramRunnerError::InvalidAddress:
       return "PC";
+    case ProgramRunnerError::InvalidTarget:
+      return "TGT";
     case ProgramRunnerError::InvalidStep:
       return "OPC";
     case ProgramRunnerError::UnsupportedControl:
       return "CTL";
+    case ProgramRunnerError::CallStackOverflow:
+      return "STK";
     case ProgramRunnerError::CalculatorError:
       return "CALC";
   }
@@ -136,10 +140,14 @@ const char *programRunnerErrorText(ProgramRunnerError error) {
       return "";
     case ProgramRunnerError::InvalidAddress:
       return "Execution cursor is not on a valid step boundary.";
+    case ProgramRunnerError::InvalidTarget:
+      return "Program control flow targeted an invalid step address.";
     case ProgramRunnerError::InvalidStep:
       return "Stored program step is invalid or incomplete.";
     case ProgramRunnerError::UnsupportedControl:
       return "This control-flow program step is not implemented yet.";
+    case ProgramRunnerError::CallStackOverflow:
+      return "Program call stack overflowed during execution.";
     case ProgramRunnerError::CalculatorError:
       return "Calculator execution failed while running the program.";
   }
@@ -152,6 +160,7 @@ ProgramRunner::ProgramRunner() {
 }
 
 void ProgramRunner::reset() {
+  callDepth_ = 0;
   runAddress_ = 0;
   running_ = false;
   error_ = ProgramRunnerError::None;
@@ -161,6 +170,13 @@ bool ProgramRunner::start(const ProgramVm &vm) {
   if ((runAddress_ > vm.programLength()) || !vm.isStepBoundary(runAddress_)) {
     fail(ProgramRunnerError::InvalidAddress);
     return false;
+  }
+
+  for (uint8_t index = 0; index < callDepth_; ++index) {
+    if (!isValidTargetAddress(vm, callStack_[index])) {
+      fail(ProgramRunnerError::InvalidTarget);
+      return false;
+    }
   }
 
   error_ = ProgramRunnerError::None;
@@ -173,6 +189,7 @@ void ProgramRunner::stop() {
 }
 
 void ProgramRunner::resetRunAddress() {
+  callDepth_ = 0;
   runAddress_ = 0;
   running_ = false;
   error_ = ProgramRunnerError::None;
@@ -186,6 +203,7 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
   const uint16_t programLength = vm.programLength();
   if (runAddress_ == programLength) {
     running_ = false;
+    callDepth_ = 0;
     return true;
   }
 
@@ -231,9 +249,45 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
   if (step.opcode <= 0x5F) {
     switch (step.opcode) {
       case 0x50:
-      case 0x52:
         runAddress_ = nextAddress;
         running_ = false;
+        return true;
+      case 0x52: {
+        if (callDepth_ == 0) {
+          runAddress_ = nextAddress;
+          running_ = false;
+          return true;
+        }
+
+        uint8_t returnAddress = 0;
+        if (!popReturnAddress(returnAddress) || !isValidTargetAddress(vm, returnAddress)) {
+          fail(ProgramRunnerError::InvalidTarget);
+          return false;
+        }
+
+        runAddress_ = returnAddress;
+        return true;
+      }
+      case 0x51:
+        if (!isValidTargetAddress(vm, step.operand)) {
+          fail(ProgramRunnerError::InvalidTarget);
+          return false;
+        }
+
+        runAddress_ = step.operand;
+        return true;
+      case 0x53:
+        if (!isValidTargetAddress(vm, step.operand)) {
+          fail(ProgramRunnerError::InvalidTarget);
+          return false;
+        }
+
+        if (!pushReturnAddress(nextAddress)) {
+          fail(ProgramRunnerError::CallStackOverflow);
+          return false;
+        }
+
+        runAddress_ = step.operand;
         return true;
       case 0x54:
         runAddress_ = nextAddress;
@@ -291,4 +345,28 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
 void ProgramRunner::fail(ProgramRunnerError error) {
   running_ = false;
   error_ = error;
+}
+
+bool ProgramRunner::isValidTargetAddress(const ProgramVm &vm, uint8_t address) const {
+  return (address <= vm.programLength()) && vm.isStepBoundary(address);
+}
+
+bool ProgramRunner::pushReturnAddress(uint8_t address) {
+  if (callDepth_ >= kCallStackCapacity) {
+    return false;
+  }
+
+  callStack_[callDepth_] = address;
+  ++callDepth_;
+  return true;
+}
+
+bool ProgramRunner::popReturnAddress(uint8_t &address) {
+  if (callDepth_ == 0) {
+    return false;
+  }
+
+  --callDepth_;
+  address = callStack_[callDepth_];
+  return true;
 }
