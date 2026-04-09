@@ -149,9 +149,8 @@ constexpr int kHelpBodyY = 18;
 constexpr int kHelpLineHeight = 7;
 constexpr uint8_t kHelpBodyLineCount = 6;
 constexpr int kHelpTextWidth = 126;
-constexpr int kProgramListFirstY = 10;
-constexpr int kProgramListRowHeight = 9;
-constexpr uint8_t kProgramListVisibleRows = 6;
+constexpr int kDisplayHeight = 64;
+constexpr int kProgramListFirstY = kStatusBarHeight;
 constexpr int kSettingsFirstRowY = 10;
 constexpr int kSettingsRowHeight = 7;
 constexpr int kSettingsCursorBoxWidth = 6;
@@ -1517,23 +1516,33 @@ void drawProgramScreen() {
     }
   }
 
+  drawStatusBar();
+
+  display.setFont(u8g2_font_5x7_mr);
+  const int rowHeight = display.getMaxCharHeight();
+  const int availableHeight = kDisplayHeight - kProgramListFirstY;
+  uint16_t visibleRows = 1;
+  if (rowHeight > 0) {
+    visibleRows = static_cast<uint16_t>(availableHeight / rowHeight);
+    if (visibleRows == 0) {
+      visibleRows = 1;
+    }
+  }
+
   uint16_t firstVisible = 0;
-  if (listingCount > static_cast<uint16_t>(kProgramListVisibleRows)) {
-    const uint16_t halfWindow = static_cast<uint16_t>(kProgramListVisibleRows / 2);
+  if (listingCount > visibleRows) {
+    const uint16_t halfWindow = visibleRows / 2;
     if (cursorIndex > halfWindow) {
       firstVisible = cursorIndex - halfWindow;
     }
 
-    const uint16_t maxFirstVisible = listingCount - kProgramListVisibleRows;
+    const uint16_t maxFirstVisible = listingCount - visibleRows;
     if (firstVisible > maxFirstVisible) {
       firstVisible = maxFirstVisible;
     }
   }
 
-  drawStatusBar();
-
-  display.setFont(u8g2_font_5x7_mr);
-  for (uint8_t row = 0; row < kProgramListVisibleRows; ++row) {
+  for (uint16_t row = 0; row < visibleRows; ++row) {
     const uint16_t lineIndex = firstVisible + row;
     if (lineIndex >= listingCount) {
       break;
@@ -1553,7 +1562,7 @@ void drawProgramScreen() {
 
     char rowBuffer[72];
     snprintf(rowBuffer, sizeof(rowBuffer), "%c%s", isCursorLine ? '>' : ' ', listingBuffer);
-    display.drawStr(0, kProgramListFirstY + (row * kProgramListRowHeight), rowBuffer);
+    display.drawStr(0, kProgramListFirstY + static_cast<int>(row) * rowHeight, rowBuffer);
   }
 }
 
