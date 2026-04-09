@@ -1492,7 +1492,7 @@ void drawProgramScreen() {
   const uint16_t programLength = programVm.programLength();
 
   normalizeProgramEditAddress();
-  cursor = programEditAddress;
+  cursor = 0;
 
   while ((cursor < programLength) && (listingCount < ProgramVm::kProgramCapacity)) {
     listingAddresses[listingCount++] = cursor;
