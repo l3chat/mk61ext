@@ -1,4 +1,6 @@
 #include "RpnCalculator.h"
+#include "ProgramRecorder.h"
+#include "ProgramVm.h"
 
 #include <cmath>
 #include <cstdint>
@@ -44,10 +46,43 @@ void expectNear(CalculatorValue actual,
   }
 }
 
+void expectEqualByte(uint8_t actual, uint8_t expected, const char *message) {
+  if (actual != expected) {
+    std::cerr << "FAIL: " << message << " (expected " << static_cast<unsigned>(expected)
+              << ", got " << static_cast<unsigned>(actual) << ")\n";
+    std::exit(1);
+  }
+}
+
+void expectEqualU16(uint16_t actual, uint16_t expected, const char *message) {
+  if (actual != expected) {
+    std::cerr << "FAIL: " << message << " (expected " << expected << ", got " << actual << ")\n";
+    std::exit(1);
+  }
+}
+
+void expectString(const char *actual, const char *expected, const char *message) {
+  if ((actual == nullptr) || (std::strcmp(actual, expected) != 0)) {
+    std::cerr << "FAIL: " << message << " (expected \"" << expected << "\", got \""
+              << ((actual != nullptr) ? actual : "(null)") << "\")\n";
+    std::exit(1);
+  }
+}
+
 void expectError(const RpnCalculator &calculator, CalculatorError expected, const char *message) {
   if (calculator.error() != expected) {
     std::cerr << "FAIL: " << message << " (expected error " << static_cast<int>(expected)
               << ", got " << static_cast<int>(calculator.error()) << ")\n";
+    std::exit(1);
+  }
+}
+
+void expectRecorderError(const ProgramRecorder &recorder,
+                         ProgramRecorderError expected,
+                         const char *message) {
+  if (recorder.error() != expected) {
+    std::cerr << "FAIL: " << message << " (expected error " << static_cast<int>(expected)
+              << ", got " << static_cast<int>(recorder.error()) << ")\n";
     std::exit(1);
   }
 }
@@ -566,6 +601,319 @@ void testRecallPushesStack() {
   expectEqual(calculator.stack().z, 5.0, "recall-push sequence should preserve the older Y value in Z");
 }
 
+void testProgramVmOpcodeInfo() {
+  ProgramOpcodeInfo digitInfo = describeProgramOpcode(0x07);
+  expectTrue(digitInfo.valid, "opcode 07 should be valid");
+  expectEqual(digitInfo.width, 1.0, "opcode 07 should be one byte");
+  expectString(digitInfo.mnemonic, "7", "opcode 07 should decode as digit 7");
+
+  ProgramOpcodeInfo rclFInfo = describeProgramOpcode(0x4F);
+  expectTrue(rclFInfo.valid, "opcode 4F should be valid after enabling register F");
+  expectString(rclFInfo.mnemonic, "RCL", "opcode 4F should be in the RCL family");
+
+  ProgramOpcodeInfo gtoInfo = describeProgramOpcode(0x51);
+  expectTrue(gtoInfo.valid, "opcode 51 should be valid");
+  expectEqual(gtoInfo.width, 2.0, "opcode 51 should be two bytes");
+  expectString(gtoInfo.mnemonic, "GTO", "opcode 51 should decode as GTO");
+
+  ProgramOpcodeInfo invalidInfo = describeProgramOpcode(0x55);
+  expectFalse(invalidInfo.valid, "opcode 55 should remain invalid");
+  expectString(invalidInfo.mnemonic, "INVALID", "opcode 55 should decode as INVALID");
+
+  ProgramOpcodeInfo extensionInfo = describeProgramOpcode(0xF0);
+  expectFalse(extensionInfo.valid, "opcode F0 should not be valid in core v1");
+  expectTrue(extensionInfo.extension, "opcode F0 should be marked as extension-space");
+  expectString(extensionInfo.mnemonic, "EXT", "opcode F0 should decode as extension");
+}
+
+void testProgramVmFormattingAndListing() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x01, 0x0E, 0x02, 0x12, 0x4F, 0x51, 0x12, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)), "ProgramVm should load a valid byte sequence");
+  expectEqual(vm.programLength(), 8.0, "ProgramVm should report the loaded program length");
+
+  ProgramVm::DecodedStep gtoStep = vm.decodeAt(5);
+  expectTrue(gtoStep.inRange, "decodeAt should report in-range for existing addresses");
+  expectTrue(gtoStep.valid, "GTO opcode should decode as valid");
+  expectEqual(gtoStep.width, 2.0, "GTO step should decode as two-byte");
+  expectTrue(gtoStep.complete, "GTO step should have its operand available");
+  expectEqual(gtoStep.operand, 0x12, "GTO operand should decode from the next byte");
+
+  char label[32];
+  expectTrue(vm.formatStep(gtoStep, label, sizeof(label)), "formatStep should succeed for valid steps");
+  expectString(label, "GTO 12", "formatStep should render two-byte control operations with operands");
+
+  ProgramVm::DecodedStep rclFStep = vm.decodeAt(4);
+  expectTrue(vm.formatStep(rclFStep, label, sizeof(label)), "formatStep should succeed for register steps");
+  expectString(label, "RCL F", "formatStep should expose register-F opcodes");
+
+  char line[64];
+  expectTrue(vm.formatListingLine(5, line, sizeof(line)),
+             "formatListingLine should succeed for in-range steps");
+  expectString(line, "05: 51 12   GTO 12",
+               "listing output should include address, bytes, and decoded mnemonic");
+
+  ProgramVm truncatedVm;
+  const uint8_t truncated[] = {0x51};
+  expectTrue(truncatedVm.loadProgram(truncated, sizeof(truncated)),
+             "ProgramVm should load a truncated control opcode for diagnostics");
+
+  ProgramVm::DecodedStep truncatedStep = truncatedVm.decodeAt(0);
+  expectTrue(truncatedStep.valid, "truncated GTO should still decode as a known opcode");
+  expectFalse(truncatedStep.complete, "truncated GTO should report missing operand");
+  expectTrue(truncatedVm.formatStep(truncatedStep, label, sizeof(label)),
+             "formatStep should still work for truncated steps");
+  expectString(label, "GTO __", "truncated two-byte steps should show placeholder operand text");
+
+  expectTrue(truncatedVm.formatListingLine(0, line, sizeof(line)),
+             "formatListingLine should work for truncated steps");
+  expectString(line, "00: 51 __   GTO __",
+               "listing output should make truncated two-byte opcodes obvious");
+}
+
+void testProgramVmStepNavigation() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x01, 0x51, 0x20, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "ProgramVm should load navigation test bytes");
+
+  expectTrue(vm.isStepBoundary(0), "address 00 should be a step boundary");
+  expectTrue(vm.isStepBoundary(1), "address 01 should be a step boundary");
+  expectFalse(vm.isStepBoundary(2), "address 02 should be inside a two-byte step");
+  expectTrue(vm.isStepBoundary(3), "address 03 should be a step boundary");
+  expectTrue(vm.isStepBoundary(4), "program end should be a boundary");
+
+  expectEqualByte(vm.nextStepAddress(0), 1, "next step after 00 should be 01");
+  expectEqualByte(vm.nextStepAddress(1), 3, "next step after 01 should skip to 03");
+  expectEqualByte(vm.nextStepAddress(3), 4, "next step after 03 should be program end");
+  expectEqualByte(vm.nextStepAddress(4), 4, "next step at end should stay at end");
+  expectEqualByte(vm.nextStepAddress(2), 2,
+                  "next step should refuse to advance from non-boundary addresses");
+
+  uint8_t previous = 0;
+  expectFalse(vm.previousStepAddress(0, previous),
+              "there should be no previous step before address 00");
+  expectTrue(vm.previousStepAddress(1, previous), "previous step before 01 should exist");
+  expectEqualByte(previous, 0, "previous step before 01 should be 00");
+  expectTrue(vm.previousStepAddress(3, previous), "previous step before 03 should exist");
+  expectEqualByte(previous, 1, "previous step before 03 should be 01");
+  expectTrue(vm.previousStepAddress(4, previous), "previous step before end should exist");
+  expectEqualByte(previous, 3, "previous step before end should be 03");
+  expectFalse(vm.previousStepAddress(2, previous),
+              "previous step lookup should reject non-boundary addresses");
+}
+
+void testProgramVmStepReplacement() {
+  ProgramVm vm;
+  const uint8_t initialProgram[] = {0x01, 0x0E, 0x02, 0x12, 0x41, 0x51, 0x12, 0x50};
+  expectTrue(vm.loadProgram(initialProgram, sizeof(initialProgram)),
+             "ProgramVm should load replace-step baseline program");
+
+  expectTrue(vm.replaceStepAt(4, 0x51, 0x34),
+             "replacing a 1-byte step with a 2-byte step should succeed");
+  expectEqualU16(vm.programLength(), 9, "program length should grow by one byte");
+  const uint8_t expandedProgram[] = {0x01, 0x0E, 0x02, 0x12, 0x51, 0x34, 0x51, 0x12, 0x50};
+  for (uint8_t index = 0; index < sizeof(expandedProgram); ++index) {
+    expectEqualByte(vm.programByte(index), expandedProgram[index],
+                    "expanded replacement should preserve and shift trailing bytes");
+  }
+
+  expectTrue(vm.replaceStepAt(4, 0x6F),
+             "replacing a 2-byte step with a 1-byte step should succeed");
+  expectEqualU16(vm.programLength(), 8, "program length should shrink by one byte");
+  const uint8_t shrunkProgram[] = {0x01, 0x0E, 0x02, 0x12, 0x6F, 0x51, 0x12, 0x50};
+  for (uint8_t index = 0; index < sizeof(shrunkProgram); ++index) {
+    expectEqualByte(vm.programByte(index), shrunkProgram[index],
+                    "shrunk replacement should keep trailing bytes aligned");
+  }
+
+  expectTrue(vm.replaceStepAt(8, 0x50), "appending at program end should succeed");
+  expectEqualU16(vm.programLength(), 9, "appending a one-byte step should increase length by one");
+  expectEqualByte(vm.programByte(8), 0x50, "appended step should be written at the end");
+
+  expectFalse(vm.replaceStepAt(5, 0x55), "invalid opcodes should be rejected by replacement");
+  expectFalse(vm.replaceStepAt(5, 0xF0),
+              "extension-space opcodes should be rejected until explicitly supported");
+  expectFalse(vm.replaceStepAt(6, 0x50),
+              "replacement should reject non-boundary addresses inside two-byte steps");
+}
+
+void testProgramVmReplacementOverflow() {
+  ProgramVm fullVm;
+  expectTrue(fullVm.setProgramLength(ProgramVm::kProgramCapacity),
+             "setting a full-length program should succeed");
+  expectFalse(fullVm.replaceStepAt(0, 0x51, 0x00),
+              "expanding a full program should fail due to capacity limit");
+
+  ProgramVm nearlyFullVm;
+  expectTrue(nearlyFullVm.setProgramLength(255),
+             "setting a nearly full program should succeed");
+  expectFalse(nearlyFullVm.replaceStepAt(255, 0x51, 0x00),
+              "appending a two-byte step at 255 should overflow");
+  expectTrue(nearlyFullVm.replaceStepAt(255, 0x50),
+             "appending a one-byte step at 255 should still fit");
+  expectEqualU16(nearlyFullVm.programLength(), 256, "successful append should fill program capacity");
+}
+
+void testProgramRecorderBasicFlow() {
+  ProgramVm vm;
+  ProgramRecorder recorder;
+  uint8_t editAddress = 0;
+
+  expectTrue(recorder.handleKey(vm, editAddress, '7'),
+             "recording digit 7 should append opcode 07");
+  expectEqualU16(vm.programLength(), 1, "recording first step should grow program length to 1");
+  expectEqualByte(vm.programByte(0), 0x07, "digit 7 should encode as opcode 07");
+  expectEqualByte(editAddress, 1, "cursor should advance after recording a one-byte step");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'm'),
+             "BST should move to the previous step boundary");
+  expectEqualByte(editAddress, 0, "BST from program end should move back to address 00");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'v'),
+             "recording ENTER over an existing step should replace it");
+  expectEqualU16(vm.programLength(), 1, "replacing a one-byte step should keep program length stable");
+  expectEqualByte(vm.programByte(0), 0x0E, "ENTER should encode as opcode 0E");
+  expectEqualByte(editAddress, 1, "cursor should advance after replacement");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'l'),
+             "SST at append position should keep the cursor at program end");
+  expectEqualByte(editAddress, 1, "SST at end should not move past program length");
+}
+
+void testProgramRecorderRegisterAndAddressOperands() {
+  ProgramVm vm;
+  ProgramRecorder recorder;
+  uint8_t editAddress = 0;
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'q'),
+             "RCL should arm register-operand entry");
+  expectTrue(recorder.hasPendingInput(), "RCL should create pending recorder state");
+  expectTrue(recorder.handleKey(vm, editAddress, 'u'),
+             "RCL followed by u should commit RCL F");
+  expectFalse(recorder.hasPendingInput(), "successful register commit should clear pending state");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'r'),
+             "STO should arm register-operand entry");
+  expectTrue(recorder.handleKey(vm, editAddress, 'y'),
+             "STO followed by y should commit STO C");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 's'),
+             "GTO should arm address entry");
+  expectTrue(recorder.handleKey(vm, editAddress, '.'),
+             "first address nibble . should map to hexadecimal A");
+  expectTrue(recorder.handleKey(vm, editAddress, 'u'),
+             "second address nibble u should map to hexadecimal F");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 't'),
+             "GSB should arm address entry");
+  expectTrue(recorder.handleKey(vm, editAddress, '1'),
+             "GSB high nibble should accept digit 1");
+  expectTrue(recorder.handleKey(vm, editAddress, '2'),
+             "GSB low nibble should accept digit 2");
+
+  expectEqualU16(vm.programLength(), 6, "recorded register/address sequence should use 6 bytes");
+  const uint8_t expected[] = {0x4F, 0x6C, 0x51, 0xAF, 0x53, 0x12};
+  for (uint8_t index = 0; index < sizeof(expected); ++index) {
+    expectEqualByte(vm.programByte(index), expected[index],
+                    "register/address recorder output should match canonical opcodes");
+  }
+  expectEqualByte(editAddress, 6, "cursor should end at append position after commits");
+}
+
+void testProgramRecorderShiftedFamilies() {
+  ProgramVm vm;
+  ProgramRecorder recorder;
+  uint8_t editAddress = 0;
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'k'),
+             "F prefix should arm shifted recording");
+  expectTrue(recorder.handleKey(vm, editAddress, '7'),
+             "F 7 should record SIN");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'k'),
+             "F prefix should re-arm for DSNZ recording");
+  expectTrue(recorder.handleKey(vm, editAddress, 'q'),
+             "F q should arm DSNZ0 address entry");
+  expectTrue(recorder.handleKey(vm, editAddress, '2'),
+             "DSNZ0 high nibble should accept 2");
+  expectTrue(recorder.handleKey(vm, editAddress, '0'),
+             "DSNZ0 low nibble should accept 0");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'p'),
+             "K prefix should arm shifted recording");
+  expectTrue(recorder.handleKey(vm, editAddress, 'q'),
+             "K q should arm RCLI register entry");
+  expectTrue(recorder.handleKey(vm, editAddress, 'u'),
+             "K q u should commit RCLI F");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'p'),
+             "K prefix should arm indirect jump recording");
+  expectTrue(recorder.handleKey(vm, editAddress, 's'),
+             "K s should arm JPI register entry");
+  expectTrue(recorder.handleKey(vm, editAddress, 'v'),
+             "K s v should commit JPI E");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'k'),
+             "F prefix should arm before prefix switch test");
+  expectTrue(recorder.handleKey(vm, editAddress, 'p'),
+             "pressing p after k should switch to K prefix");
+  expectTrue(recorder.handleKey(vm, editAddress, '4'),
+             "K 4 should record ABS");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'p'),
+             "K prefix should arm before NOP");
+  expectTrue(recorder.handleKey(vm, editAddress, '0'),
+             "K 0 should record NOP");
+
+  const uint8_t expected[] = {0x1C, 0x5D, 0x20, 0xDF, 0x8E, 0x31, 0x54};
+  expectEqualU16(vm.programLength(), sizeof(expected),
+                 "shifted recorder sequence should produce expected byte count");
+  for (uint8_t index = 0; index < sizeof(expected); ++index) {
+    expectEqualByte(vm.programByte(index), expected[index],
+                    "shifted recorder mapping should match the recommended opcode map");
+  }
+}
+
+void testProgramRecorderErrors() {
+  ProgramVm vm;
+  ProgramRecorder recorder;
+  uint8_t editAddress = 0;
+
+  expectFalse(recorder.handleKey(vm, editAddress, 'a'),
+              "unsupported primary key should be rejected");
+  expectRecorderError(recorder, ProgramRecorderError::InvalidKey,
+                      "unsupported key should report InvalidKey");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'q'),
+             "RCL should arm register-operand state before invalid operand test");
+  expectFalse(recorder.handleKey(vm, editAddress, 'a'),
+              "invalid register designator should be rejected");
+  expectRecorderError(recorder, ProgramRecorderError::InvalidOperand,
+                      "invalid register designator should report InvalidOperand");
+  expectFalse(recorder.hasPendingInput(),
+              "invalid register designator should clear pending recorder state");
+
+  ProgramVm nearlyFullVm;
+  expectTrue(nearlyFullVm.setProgramLength(255),
+             "setting a nearly full program should succeed for overflow test");
+  ProgramRecorder overflowRecorder;
+  uint8_t overflowAddress = 255;
+
+  expectTrue(overflowRecorder.handleKey(nearlyFullVm, overflowAddress, 's'),
+             "GTO should arm address entry at the final byte");
+  expectTrue(overflowRecorder.handleKey(nearlyFullVm, overflowAddress, '0'),
+             "first address nibble should still be accepted near capacity");
+  expectFalse(overflowRecorder.handleKey(nearlyFullVm, overflowAddress, '0'),
+              "committing a two-byte command at 255 should overflow");
+  expectRecorderError(overflowRecorder, ProgramRecorderError::CommitFailed,
+                      "overflowing commit should report CommitFailed");
+  expectFalse(overflowRecorder.hasPendingInput(),
+              "failed overflow commit should clear pending recorder state");
+  expectEqualU16(nearlyFullVm.programLength(), 255,
+                 "overflowed two-byte append should leave program length unchanged");
+}
+
 }  // namespace
 
 int main() {
@@ -587,6 +935,15 @@ int main() {
   testLongMantissaDigitsAreRejected();
   testProblematicLongMixedMantissaStopsAtPrecisionLimit();
   testRecallPushesStack();
+  testProgramVmOpcodeInfo();
+  testProgramVmFormattingAndListing();
+  testProgramVmStepNavigation();
+  testProgramVmStepReplacement();
+  testProgramVmReplacementOverflow();
+  testProgramRecorderBasicFlow();
+  testProgramRecorderRegisterAndAddressOperands();
+  testProgramRecorderShiftedFamilies();
+  testProgramRecorderErrors();
   std::cout << "RpnCalculator regression tests passed.\n";
   return 0;
 }

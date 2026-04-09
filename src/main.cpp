@@ -82,6 +82,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -91,6 +92,8 @@
 #include "CalculatorKeymap.h"
 #include "Keypad.h"
 #include "Mk61extDisplay.h"
+#include "ProgramRecorder.h"
+#include "ProgramVm.h"
 #include "RpnCalculator.h"
 
 #if __has_include(<hardware/clocks.h>) && __has_include(<hardware/pll.h>)
@@ -146,6 +149,9 @@ constexpr int kHelpBodyY = 18;
 constexpr int kHelpLineHeight = 7;
 constexpr uint8_t kHelpBodyLineCount = 6;
 constexpr int kHelpTextWidth = 126;
+constexpr int kProgramListFirstY = 10;
+constexpr int kProgramListRowHeight = 9;
+constexpr uint8_t kProgramListVisibleRows = 6;
 constexpr int kSettingsFirstRowY = 10;
 constexpr int kSettingsRowHeight = 7;
 constexpr int kSettingsCursorBoxWidth = 6;
@@ -274,6 +280,8 @@ Keypad keypad(makeKeymap(kKeyMap), kRowPins, kColumnPins, kRowCount, kColumnCoun
 TwoWire eepromWire(kEepromSdaPin, kEepromSclPin);
 ExternalEEPROM eeprom;
 RpnCalculator calculator;
+ProgramVm programVm;
+ProgramRecorder programRecorder;
 Mk61extDisplay display(
     U8G2_R0,
     kDisplayClockPin,
@@ -295,6 +303,8 @@ KeypadDiagnostics keypadDiagnostics;
 HelpState helpState;
 SettingsState settingsState;
 PendingRegisterOperation pendingRegisterOperation = PendingRegisterOperation::None;
+bool programMode = false;
+uint8_t programEditAddress = 0;
 float supplyVoltage = NAN;
 uint32_t lastSupplySampleMs = 0;
 bool runningOnBattery = true;
@@ -720,11 +730,41 @@ void clearPendingRegisterOperation() {
   pendingRegisterOperation = PendingRegisterOperation::None;
 }
 
+void normalizeProgramEditAddress() {
+  const uint16_t length = programVm.programLength();
+  if (programEditAddress > length) {
+    programEditAddress = static_cast<uint8_t>(length);
+  }
+
+  if (!programVm.isStepBoundary(programEditAddress)) {
+    programEditAddress = static_cast<uint8_t>(length);
+  }
+}
+
+void enterProgramMode() {
+  programMode = true;
+  programRecorder.reset();
+  normalizeProgramEditAddress();
+  clearPendingRegisterOperation();
+  resetCalculatorKeymapState();
+  clearHelpSelection();
+  noteUserActivity();
+}
+
+void exitProgramMode() {
+  programMode = false;
+  programRecorder.reset();
+  clearPendingRegisterOperation();
+  resetCalculatorKeymapState();
+  noteUserActivity();
+}
+
 void enterSettingsMode() {
   settingsState.active = true;
   settingsState.originalSettings = currentStoredSettings();
   settingsState.stagedSettings = settingsState.originalSettings;
   settingsState.selectedIndex = 0;
+  programRecorder.reset();
   helpState.enabled = false;
   clearHelpSelection();
   clearPendingRegisterOperation();
@@ -860,6 +900,7 @@ void setHelpMode(bool enabled) {
   helpState.enabled = enabled;
   clearHelpSelection();
   clearPendingRegisterOperation();
+  programRecorder.reset();
   resetCalculatorKeymapState();
 }
 
@@ -966,6 +1007,16 @@ void handleSettingsPressedKey(char keyPressed) {
   }
 }
 
+void handleProgramPressedKey(char keyPressed) {
+  if ((keyPressed == 'x') && !programRecorder.hasPendingOperand() &&
+      (std::strcmp(programRecorder.activePrefixName(), "F") == 0)) {
+    exitProgramMode();
+    return;
+  }
+
+  (void)programRecorder.handleKey(programVm, programEditAddress, keyPressed);
+}
+
 void handlePressedKey(char keyPressed) {
   if (settingsState.active) {
     handleSettingsPressedKey(keyPressed);
@@ -979,6 +1030,16 @@ void handlePressedKey(char keyPressed) {
 
   if (helpState.enabled) {
     handleHelpPressedKey(keyPressed);
+    return;
+  }
+
+  if (programMode) {
+    handleProgramPressedKey(keyPressed);
+    return;
+  }
+
+  if ((activeCalculatorPrefix() == CalculatorPrefix::F) && (keyPressed == 'y')) {
+    enterProgramMode();
     return;
   }
 
@@ -1169,6 +1230,21 @@ const char *calculatorModeName() {
   return "RUN";
 }
 
+const char *programRecorderErrorShortName(ProgramRecorderError error) {
+  switch (error) {
+    case ProgramRecorderError::None:
+      return "";
+    case ProgramRecorderError::InvalidKey:
+      return "KEY";
+    case ProgramRecorderError::InvalidOperand:
+      return "OPR";
+    case ProgramRecorderError::CommitFailed:
+      return "MEM";
+  }
+
+  return "ERR";
+}
+
 void formatEventLabel(char *buffer, size_t bufferSize) {
   if (!keypadDiagnostics.hasEvent) {
     snprintf(buffer, bufferSize, "--");
@@ -1192,7 +1268,7 @@ void formatStatusRightText(char *buffer, size_t bufferSize) {
 }
 
 void drawStatusBar() {
-  char leftBuffer[24];
+  char leftBuffer[32];
   char rightBuffer[18];
 
   if (settingsState.active) {
@@ -1204,6 +1280,21 @@ void drawStatusBar() {
       snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s HELP %s", angleModeShortName(calculator.angleMode()), prefixName);
     } else {
       snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s HELP", angleModeShortName(calculator.angleMode()));
+    }
+    formatStatusRightText(rightBuffer, sizeof(rightBuffer));
+  } else if (programMode) {
+    const char *recorderErrorShort = programRecorderErrorShortName(programRecorder.error());
+    const char *recorderPrefix = programRecorder.activePrefixName();
+    const unsigned editAddress = static_cast<unsigned>(programEditAddress);
+    const unsigned programLength = static_cast<unsigned>(programVm.programLength());
+    if (recorderErrorShort[0] != '\0') {
+      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X E:%s", editAddress, programLength, recorderErrorShort);
+    } else if (programRecorder.hasPendingOperand()) {
+      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X PND", editAddress, programLength);
+    } else if (recorderPrefix[0] != '\0') {
+      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X %s", editAddress, programLength, recorderPrefix);
+    } else {
+      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X", editAddress, programLength);
     }
     formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (calculator.hasError()) {
@@ -1394,6 +1485,78 @@ void drawSettingsScreen() {
                   kSettingsDescriptionLineHeight);
 }
 
+void drawProgramScreen() {
+  std::array<uint16_t, ProgramVm::kProgramCapacity + 1> listingAddresses{};
+  uint16_t listingCount = 0;
+  uint16_t cursor = 0;
+  const uint16_t programLength = programVm.programLength();
+
+  normalizeProgramEditAddress();
+  cursor = programEditAddress;
+
+  while ((cursor < programLength) && (listingCount < ProgramVm::kProgramCapacity)) {
+    listingAddresses[listingCount++] = cursor;
+
+    const ProgramVm::DecodedStep step = programVm.decodeAt(static_cast<uint8_t>(cursor));
+    const uint16_t stepWidth = (step.width > 0) ? step.width : 1;
+    const uint16_t next = cursor + stepWidth;
+    if ((next <= cursor) || (next > programLength)) {
+      cursor = programLength;
+    } else {
+      cursor = next;
+    }
+  }
+
+  listingAddresses[listingCount++] = programLength;
+
+  uint16_t cursorIndex = listingCount - 1;
+  for (uint16_t index = 0; index < listingCount; ++index) {
+    if (listingAddresses[index] == static_cast<uint16_t>(programEditAddress)) {
+      cursorIndex = index;
+      break;
+    }
+  }
+
+  uint16_t firstVisible = 0;
+  if (listingCount > static_cast<uint16_t>(kProgramListVisibleRows)) {
+    const uint16_t halfWindow = static_cast<uint16_t>(kProgramListVisibleRows / 2);
+    if (cursorIndex > halfWindow) {
+      firstVisible = cursorIndex - halfWindow;
+    }
+
+    const uint16_t maxFirstVisible = listingCount - kProgramListVisibleRows;
+    if (firstVisible > maxFirstVisible) {
+      firstVisible = maxFirstVisible;
+    }
+  }
+
+  drawStatusBar();
+
+  display.setFont(u8g2_font_5x7_mr);
+  for (uint8_t row = 0; row < kProgramListVisibleRows; ++row) {
+    const uint16_t lineIndex = firstVisible + row;
+    if (lineIndex >= listingCount) {
+      break;
+    }
+
+    const uint16_t lineAddress = listingAddresses[lineIndex];
+    const bool isCursorLine = lineAddress == static_cast<uint16_t>(programEditAddress);
+
+    char listingBuffer[64];
+    if (lineAddress == programLength) {
+      snprintf(listingBuffer, sizeof(listingBuffer), "%02X: --      END", static_cast<unsigned>(lineAddress));
+    } else if (!programVm.formatListingLine(static_cast<uint8_t>(lineAddress),
+                                            listingBuffer,
+                                            sizeof(listingBuffer))) {
+      snprintf(listingBuffer, sizeof(listingBuffer), "%02X: --      END", static_cast<unsigned>(lineAddress));
+    }
+
+    char rowBuffer[72];
+    snprintf(rowBuffer, sizeof(rowBuffer), "%c%s", isCursorLine ? '>' : ' ', listingBuffer);
+    display.drawStr(0, kProgramListFirstY + (row * kProgramListRowHeight), rowBuffer);
+  }
+}
+
 void drawCalculatorScreen() {
   const CalculatorStack stack = calculator.stack();
   char xBuffer[RpnCalculator::kEntryBufferSize];
@@ -1439,6 +1602,8 @@ void loop() {
     drawSettingsScreen();
   } else if (helpState.enabled) {
     drawHelpScreen();
+  } else if (programMode) {
+    drawProgramScreen();
   } else {
     drawCalculatorScreen();
   }

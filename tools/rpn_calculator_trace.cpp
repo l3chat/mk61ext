@@ -70,6 +70,9 @@ bool decodeRegisterKey(char keyPressed, uint8_t &index) {
     case 'v':
       index = 14;
       return true;
+    case 'u':
+      index = 15;
+      return true;
     default:
       return false;
   }
@@ -216,6 +219,9 @@ bool appendRegisterKey(std::vector<char> &rawKeys, char registerDesignator) {
       return true;
     case 'e':
       rawKeys.push_back('v');
+      return true;
+    case 'f':
+      rawKeys.push_back('u');
       return true;
     default:
       return false;
