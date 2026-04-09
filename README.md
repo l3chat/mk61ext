@@ -67,6 +67,8 @@ See [docs/manual-test.md](docs/manual-test.md) for the current hardware bring-up
 
 See [docs/key-assignments.md](docs/key-assignments.md) for the longer-term key-assignment plan, including the intended `F`- and `K`-shifted layers.
 
+See [docs/program-examples.md](docs/program-examples.md) for small hand-entered example programs that exercise the current program recorder and runner.
+
 ## EEPROM
 
 The firmware expects an AT24C256C-compatible EEPROM on Pico `GPIO 14`/`GPIO 15` at I2C address `0x50`. The exact pin wiring is documented in [docs/manual-test.md](docs/manual-test.md). The current build stages brightness, backlight timeout, sleep timeout, angle mode (`RAD` / `GRD` / `DEG`), stack-label visibility, and CPU frequency in a dedicated settings screen. The timeout list now includes `OFF`, `5 s`, `15 s`, `30 s`, `1 min`, `2 min`, `5 min`, and `15 min`, and those idle timeouts are applied only while the unit is running on battery power. The current CPU-frequency choices are `12 MHz`, `24 MHz`, `48 MHz`, `96 MHz`, and `125 MHz`. `e` saves the staged values and `f` cancels them, and the saved settings survive a reboot.
