@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <iostream>
 
 namespace {
@@ -211,6 +212,12 @@ void enterText(RpnCalculator &calculator, const char *text) {
 
 void clearAndEnter(RpnCalculator &calculator, const char *text) {
   press(calculator, CalculatorAction::ClearAll, "failed to clear calculator");
+  if ((text != nullptr) && (text[0] == '-') && (text[1] != '\0')) {
+    enterText(calculator, text + 1);
+    press(calculator, CalculatorAction::ChangeSign, "failed to apply leading minus sign");
+    return;
+  }
+
   enterText(calculator, text);
 }
 
@@ -943,6 +950,53 @@ void testProgramRecorderErrors() {
                  "overflowed two-byte append should leave program length unchanged");
 }
 
+void recordProgramFromSteps(ProgramVm &vm, std::initializer_list<const char *> steps) {
+  ProgramRecorder recorder;
+  uint8_t editAddress = 0;
+  uint8_t stepIndex = 0;
+
+  for (const char *step : steps) {
+    for (const char *cursor = step; *cursor != '\0'; ++cursor) {
+      if (*cursor == ' ') {
+        continue;
+      }
+
+      if (!recorder.handleKey(vm, editAddress, *cursor)) {
+        std::cerr << "FAIL: example program recording failed at step "
+                  << static_cast<unsigned>(stepIndex) << " key '" << *cursor
+                  << "' (error " << static_cast<int>(recorder.error()) << ")\n";
+        std::exit(1);
+      }
+    }
+
+    ++stepIndex;
+  }
+
+  expectFalse(recorder.hasPendingInput(),
+              "example program recording should not leave pending input");
+}
+
+void expectProgramBytes(const ProgramVm &vm,
+                        const uint8_t *expected,
+                        size_t length,
+                        const char *message) {
+  if (vm.programLength() != length) {
+    std::cerr << "FAIL: " << message << " (expected program length " << length
+              << ", got " << vm.programLength() << ")\n";
+    std::exit(1);
+  }
+
+  for (size_t index = 0; index < length; ++index) {
+    const uint8_t actual = vm.programByte(static_cast<uint16_t>(index));
+    if (actual != expected[index]) {
+      std::cerr << "FAIL: " << message << " (byte " << index << ": expected "
+                << static_cast<unsigned>(expected[index]) << ", got "
+                << static_cast<unsigned>(actual) << ")\n";
+      std::exit(1);
+    }
+  }
+}
+
 void runProgramUntilStop(ProgramRunner &runner,
                          const ProgramVm &vm,
                          RpnCalculator &calculator,
@@ -1431,6 +1485,191 @@ void testProgramRunnerInvalidStepStops() {
   expectEqualByte(runner.runAddress(), 0, "invalid step should leave run address on failing step");
 }
 
+void testExampleFactorialProgram() {
+  ProgramVm vm;
+  recordProgramFromSteps(vm, {"km0v", "r0", "r1", "kq08", "q1", "o", "q1", "q0", "*", "r1", "s04", "1", "o"});
+
+  const uint8_t expected[] = {
+      0x5E, 0x0E, 0x60, 0x61, 0x5D, 0x08, 0x41, 0x50,
+      0x41, 0x40, 0x12, 0x61, 0x51, 0x04, 0x01, 0x50,
+  };
+  expectProgramBytes(vm, expected, sizeof(expected),
+                     "factorial example should record the documented byte sequence");
+
+  const struct {
+    const char *input;
+    CalculatorValue expected;
+  } cases[] = {
+      {"0", 1.0},
+      {"1", 1.0},
+      {"5", 120.0},
+  };
+
+  for (const auto &caseData : cases) {
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    clearAndEnter(calculator, caseData.input);
+    expectTrue(runner.start(vm, calculator), "runner should start for factorial example");
+    runProgramUntilStop(runner, vm, calculator, 128, "factorial example should halt");
+
+    expectFalse(runner.hasError(), "factorial example should finish without runner errors");
+    expectNear(calculator.stack().x, caseData.expected, 1e-9,
+               "factorial example should produce the documented result");
+  }
+}
+
+void testExampleTriangularProgram() {
+  ProgramVm vm;
+  recordProgramFromSteps(vm, {"km0y", "r0", "0", "r1", "q1", "q0", "+", "r1", "kq05", "q1", "o"});
+
+  const uint8_t expected[] = {
+      0x5E, 0x0C, 0x60, 0x00, 0x61, 0x41, 0x40,
+      0x10, 0x61, 0x5D, 0x05, 0x41, 0x50,
+  };
+  expectProgramBytes(vm, expected, sizeof(expected),
+                     "triangular-number example should record the documented byte sequence");
+
+  const struct {
+    const char *input;
+    CalculatorValue expected;
+  } cases[] = {
+      {"0", 0.0},
+      {"1", 1.0},
+      {"5", 15.0},
+  };
+
+  for (const auto &caseData : cases) {
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    clearAndEnter(calculator, caseData.input);
+    expectTrue(runner.start(vm, calculator), "runner should start for triangular-number example");
+    runProgramUntilStop(runner, vm, calculator, 128, "triangular-number example should halt");
+
+    expectFalse(runner.hasError(),
+                "triangular-number example should finish without runner errors");
+    expectNear(calculator.stack().x, caseData.expected, 1e-9,
+               "triangular-number example should produce the documented result");
+  }
+}
+
+void testExampleAbsoluteValueProgram() {
+  ProgramVm vm;
+  recordProgramFromSteps(vm, {"kl03", "o", "x", "o"});
+
+  const uint8_t expected[] = {0x5C, 0x03, 0x50, 0x0B, 0x50};
+  expectProgramBytes(vm, expected, sizeof(expected),
+                     "absolute-value example should record the documented byte sequence");
+
+  const struct {
+    const char *input;
+    CalculatorValue expected;
+  } cases[] = {
+      {"-3", 3.0},
+      {"0", 0.0},
+      {"7", 7.0},
+  };
+
+  for (const auto &caseData : cases) {
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    clearAndEnter(calculator, caseData.input);
+    expectTrue(runner.start(vm, calculator), "runner should start for absolute-value example");
+    runProgramUntilStop(runner, vm, calculator, 32, "absolute-value example should halt");
+
+    expectFalse(runner.hasError(), "absolute-value example should finish without runner errors");
+    expectNear(calculator.stack().x, caseData.expected, 1e-9,
+               "absolute-value example should produce the documented result");
+  }
+}
+
+void testExampleIndirectJumpProgram() {
+  ProgramVm vm;
+  recordProgramFromSteps(vm, {"ps2", "9", "o", "1", "o"});
+
+  const uint8_t expected[] = {0x82, 0x09, 0x50, 0x01, 0x50};
+  expectProgramBytes(vm, expected, sizeof(expected),
+                     "indirect-jump example should record the documented byte sequence");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(calculator.writeRegister(2, 3.0),
+             "writing the documented indirect-jump selector target should succeed");
+  expectTrue(runner.start(vm, calculator), "runner should start for indirect-jump example");
+  runProgramUntilStop(runner, vm, calculator, 32, "indirect-jump example should halt");
+
+  expectFalse(runner.hasError(), "indirect-jump example should finish without runner errors");
+  expectEqual(calculator.stack().x, 1.0,
+              "indirect-jump example should land on the documented target");
+}
+
+void testExampleIndirectSubroutineProgram() {
+  ProgramVm vm;
+  recordProgramFromSteps(vm, {"pt1", "o", "1", "n"});
+
+  const uint8_t expected[] = {0xA1, 0x50, 0x01, 0x52};
+  expectProgramBytes(vm, expected, sizeof(expected),
+                     "indirect-subroutine example should record the documented byte sequence");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(calculator.writeRegister(1, 2.0),
+             "writing the documented indirect-subroutine selector target should succeed");
+  expectTrue(runner.start(vm, calculator), "runner should start for indirect-subroutine example");
+  runProgramUntilStop(runner, vm, calculator, 32, "indirect-subroutine example should halt");
+
+  expectFalse(runner.hasError(),
+              "indirect-subroutine example should finish without runner errors");
+  expectEqual(calculator.stack().x, 1.0,
+              "indirect-subroutine example should return to the caller after running the body");
+}
+
+void testExampleIndirectSignClassifierProgram() {
+  ProgramVm vm;
+  recordProgramFromSteps(vm, {"pl0", "pm1", "pn2", "o", "1", "x", "o", "0", "o", "1", "o"});
+
+  const uint8_t expected[] = {
+      0xC0, 0xE1, 0x92, 0x50, 0x01, 0x0B, 0x50, 0x00, 0x50, 0x01, 0x50,
+  };
+  expectProgramBytes(vm, expected, sizeof(expected),
+                     "indirect sign-classifier example should record the documented byte sequence");
+
+  const struct {
+    const char *input;
+    CalculatorValue expected;
+  } cases[] = {
+      {"-3", -1.0},
+      {"0", 0.0},
+      {"5", 1.0},
+  };
+
+  for (const auto &caseData : cases) {
+    ProgramRunner runner;
+    RpnCalculator calculator;
+
+    expectTrue(calculator.writeRegister(0, 4.0),
+               "writing the documented negative-target selector should succeed");
+    expectTrue(calculator.writeRegister(1, 7.0),
+               "writing the documented zero-target selector should succeed");
+    expectTrue(calculator.writeRegister(2, 9.0),
+               "writing the documented positive-target selector should succeed");
+    clearAndEnter(calculator, caseData.input);
+
+    expectTrue(runner.start(vm, calculator),
+               "runner should start for indirect sign-classifier example");
+    runProgramUntilStop(runner, vm, calculator, 32, "indirect sign-classifier example should halt");
+
+    expectFalse(runner.hasError(),
+                "indirect sign-classifier example should finish without runner errors");
+    expectNear(calculator.stack().x, caseData.expected, 1e-9,
+               "indirect sign-classifier example should produce the documented result");
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -1476,6 +1715,12 @@ int main() {
   testProgramRunnerIndirectInvalidTargetStops();
   testProgramRunnerCallStackOverflowStops();
   testProgramRunnerInvalidStepStops();
+  testExampleFactorialProgram();
+  testExampleTriangularProgram();
+  testExampleAbsoluteValueProgram();
+  testExampleIndirectJumpProgram();
+  testExampleIndirectSubroutineProgram();
+  testExampleIndirectSignClassifierProgram();
   std::cout << "RpnCalculator regression tests passed.\n";
   return 0;
 }

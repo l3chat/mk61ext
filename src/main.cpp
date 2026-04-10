@@ -1064,7 +1064,7 @@ void handlePressedKey(char keyPressed) {
   }
 
   if (runControlContext && (keyPressed == 'o')) {
-    (void)programRunner.start(programVm);
+    (void)programRunner.start(programVm, calculator);
     return;
   }
 

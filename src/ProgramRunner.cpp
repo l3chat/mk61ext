@@ -272,6 +272,16 @@ bool ProgramRunner::start(const ProgramVm &vm) {
   return true;
 }
 
+bool ProgramRunner::start(const ProgramVm &vm, RpnCalculator &calculator) {
+  calculator.commitEntry();
+  if (calculator.hasError()) {
+    fail(ProgramRunnerError::CalculatorError);
+    return false;
+  }
+
+  return start(vm);
+}
+
 void ProgramRunner::stop() {
   running_ = false;
 }

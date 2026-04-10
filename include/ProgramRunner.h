@@ -26,6 +26,7 @@ public:
 
   void reset();
   bool start(const ProgramVm &vm);
+  bool start(const ProgramVm &vm, RpnCalculator &calculator);
   void stop();
   void resetRunAddress();
   bool step(const ProgramVm &vm, RpnCalculator &calculator);

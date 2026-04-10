@@ -203,6 +203,14 @@ bool RpnCalculator::writeRegister(uint8_t index, CalculatorValue value) {
   return true;
 }
 
+void RpnCalculator::commitEntry() {
+  if (hasError()) {
+    return;
+  }
+
+  finishEntry();
+}
+
 void RpnCalculator::clearStackState() {
   stack_ = {0.0, 0.0, 0.0, 0.0};
   entering_ = false;
