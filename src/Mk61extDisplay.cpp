@@ -1,14 +1,6 @@
 #include "Mk61extDisplay.h"
 
 #include <Arduino.h>
-#include <SPI.h>
-
-#if __has_include(<SoftwareSPI.h>)
-#include <SoftwareSPI.h>
-#define MK61EXT_HAS_ARDUINO_PICO_SOFTWARE_SPI 1
-#else
-#define MK61EXT_HAS_ARDUINO_PICO_SOFTWARE_SPI 0
-#endif
 
 #if __has_include(<hardware/clocks.h>) && __has_include(<hardware/pio.h>) && \
     __has_include(<hardware/pio_instructions.h>)
@@ -20,57 +12,9 @@
 #define MK61EXT_HAS_PIO_LCD_TRANSPORT 0
 #endif
 
+#define MK61EXT_ENABLE_PIO_LCD_TRANSPORT 0
+
 namespace {
-
-struct DisplayTransportState {
-  bool initialized = false;
-  uint8_t clockPin = U8X8_PIN_NONE;
-  uint8_t dataPin = U8X8_PIN_NONE;
-  uint8_t csPin = U8X8_PIN_NONE;
-  uint8_t dcPin = U8X8_PIN_NONE;
-  uint8_t resetPin = U8X8_PIN_NONE;
-
-#if MK61EXT_HAS_ARDUINO_PICO_SOFTWARE_SPI
-  SoftwareSPI *softwareSpi = nullptr;
-#endif
-
-#if MK61EXT_HAS_PIO_LCD_TRANSPORT
-  bool pioReady = false;
-  PIO pio = nullptr;
-  uint sm = 0;
-  uint programOffset = 0;
-  uint32_t configuredBitClockHz = 0;
-  uint32_t configuredSysClockHz = 0;
-#endif
-};
-
-DisplayTransportState g_transport;
-
-void cachePins(u8x8_t *u8x8) {
-  g_transport.clockPin = u8x8->pins[U8X8_PIN_SPI_CLOCK];
-  g_transport.dataPin = u8x8->pins[U8X8_PIN_SPI_DATA];
-  g_transport.csPin = u8x8->pins[U8X8_PIN_CS];
-  g_transport.dcPin = u8x8->pins[U8X8_PIN_DC];
-  g_transport.resetPin = u8x8->pins[U8X8_PIN_RESET];
-}
-
-void setChipSelect(u8x8_t *u8x8, uint8_t level) {
-  if (g_transport.csPin != U8X8_PIN_NONE) {
-    digitalWrite(g_transport.csPin, level ? HIGH : LOW);
-    return;
-  }
-
-  u8x8_gpio_SetCS(u8x8, level);
-}
-
-void setDataCommand(u8x8_t *u8x8, uint8_t level) {
-  if (g_transport.dcPin != U8X8_PIN_NONE) {
-    digitalWrite(g_transport.dcPin, level ? HIGH : LOW);
-    return;
-  }
-
-  u8x8_gpio_SetDC(u8x8, level);
-}
 
 #if MK61EXT_HAS_PIO_LCD_TRANSPORT
 
@@ -95,8 +39,23 @@ const pio_program_t kSt7565PioProgram = {
     -1,
 };
 
+struct PioLcdTransport {
+  bool initialized = false;
+  bool available = false;
+  PIO pio = nullptr;
+  uint sm = 0;
+  uint programOffset = 0;
+  uint8_t clockPin = U8X8_PIN_NONE;
+  uint8_t dataPin = U8X8_PIN_NONE;
+  uint32_t requestedBitClockHz = 0;
+  uint32_t configuredBitClockHz = 0;
+  uint32_t configuredSysClockHz = 0;
+};
+
+PioLcdTransport g_pioLcdTransport;
+
 uint32_t transportPinMask() {
-  return (1u << g_transport.clockPin) | (1u << g_transport.dataPin);
+  return (1u << g_pioLcdTransport.clockPin) | (1u << g_pioLcdTransport.dataPin);
 }
 
 pio_sm_config st7565PioProgramConfig(uint programOffset, uint dataPin, uint clockPin) {
@@ -110,7 +69,16 @@ pio_sm_config st7565PioProgramConfig(uint programOffset, uint dataPin, uint cloc
   return config;
 }
 
-bool initializePioTransport() {
+bool initializePioTransport(u8x8_t *u8x8, uint8_t initialDataLevel, uint8_t initialClockLevel) {
+  if (g_pioLcdTransport.initialized) {
+    return g_pioLcdTransport.available;
+  }
+
+  g_pioLcdTransport.initialized = true;
+  g_pioLcdTransport.clockPin = u8x8->pins[U8X8_PIN_SPI_CLOCK];
+  g_pioLcdTransport.dataPin = u8x8->pins[U8X8_PIN_SPI_DATA];
+  g_pioLcdTransport.requestedBitClockHz = u8x8->bus_clock;
+
   const PIO candidates[] = {pio0, pio1};
   for (PIO candidate : candidates) {
     if (!pio_can_add_program(candidate, &kSt7565PioProgram)) {
@@ -122,32 +90,44 @@ bool initializePioTransport() {
       continue;
     }
 
-    g_transport.pio = candidate;
-    g_transport.sm = static_cast<uint>(claimedSm);
-    g_transport.programOffset = pio_add_program(candidate, &kSt7565PioProgram);
+    g_pioLcdTransport.pio = candidate;
+    g_pioLcdTransport.sm = static_cast<uint>(claimedSm);
+    g_pioLcdTransport.programOffset = pio_add_program(candidate, &kSt7565PioProgram);
 
-    pio_gpio_init(candidate, g_transport.dataPin);
-    pio_gpio_init(candidate, g_transport.clockPin);
+    const uint32_t pinMask = transportPinMask();
+    const uint32_t pinValues = (initialDataLevel ? (1u << g_pioLcdTransport.dataPin) : 0u) |
+                               (initialClockLevel ? (1u << g_pioLcdTransport.clockPin) : 0u);
 
-    const pio_sm_config config =
-        st7565PioProgramConfig(g_transport.programOffset, g_transport.dataPin, g_transport.clockPin);
-    pio_sm_init(candidate, g_transport.sm, g_transport.programOffset, &config);
-    pio_sm_set_pindirs_with_mask(candidate, g_transport.sm, transportPinMask(), transportPinMask());
-    pio_sm_set_pins_with_mask(candidate, g_transport.sm, 0u, transportPinMask());
-    pio_sm_clear_fifos(candidate, g_transport.sm);
-    pio_sm_restart(candidate, g_transport.sm);
-    pio_sm_clkdiv_restart(candidate, g_transport.sm);
-    pio_sm_set_enabled(candidate, g_transport.sm, true);
+    pio_gpio_init(candidate, g_pioLcdTransport.dataPin);
+    pio_gpio_init(candidate, g_pioLcdTransport.clockPin);
 
-    g_transport.pioReady = true;
+    const pio_sm_config config = st7565PioProgramConfig(
+        g_pioLcdTransport.programOffset, g_pioLcdTransport.dataPin, g_pioLcdTransport.clockPin);
+    pio_sm_init(candidate, g_pioLcdTransport.sm, g_pioLcdTransport.programOffset, &config);
+    pio_sm_set_pindirs_with_mask(candidate, g_pioLcdTransport.sm, pinMask, pinMask);
+    pio_sm_set_pins_with_mask(candidate, g_pioLcdTransport.sm, pinValues, pinMask);
+    pio_sm_clear_fifos(candidate, g_pioLcdTransport.sm);
+    pio_sm_restart(candidate, g_pioLcdTransport.sm);
+    pio_sm_clkdiv_restart(candidate, g_pioLcdTransport.sm);
+    pio_sm_set_enabled(candidate, g_pioLcdTransport.sm, true);
+
+    g_pioLcdTransport.available = true;
     return true;
   }
 
   return false;
 }
 
+bool ensurePioTransportInitialized(u8x8_t *u8x8) {
+  if (g_pioLcdTransport.initialized) {
+    return g_pioLcdTransport.available;
+  }
+
+  return initializePioTransport(u8x8, 0, u8x8_GetSPIClockDefaultLevel(u8x8));
+}
+
 void updatePioBitClock(uint32_t requestedBitClockHz) {
-  if (!g_transport.pioReady) {
+  if (!g_pioLcdTransport.available) {
     return;
   }
 
@@ -158,8 +138,9 @@ void updatePioBitClock(uint32_t requestedBitClockHz) {
   const uint32_t systemClockHz = clock_get_hz(clk_sys);
   const uint32_t maxBitClockHz = (systemClockHz >= kPioCyclesPerBit) ? (systemClockHz / kPioCyclesPerBit) : 1u;
   const uint32_t effectiveBitClockHz = min(min(requestedBitClockHz, kPioMaxStableBitClockHz), maxBitClockHz);
-  if ((g_transport.configuredBitClockHz == effectiveBitClockHz) &&
-      (g_transport.configuredSysClockHz == systemClockHz)) {
+
+  if ((g_pioLcdTransport.configuredBitClockHz == effectiveBitClockHz) &&
+      (g_pioLcdTransport.configuredSysClockHz == systemClockHz)) {
     return;
   }
 
@@ -168,146 +149,99 @@ void updatePioBitClock(uint32_t requestedBitClockHz) {
   uint16_t dividerInt = 1;
   uint8_t dividerFrac = 0;
   pio_calculate_clkdiv_from_float(max(divider, 1.0f), &dividerInt, &dividerFrac);
-  pio_sm_set_clkdiv_int_frac(g_transport.pio, g_transport.sm, dividerInt, dividerFrac);
-  g_transport.configuredBitClockHz = effectiveBitClockHz;
-  g_transport.configuredSysClockHz = systemClockHz;
+  pio_sm_set_clkdiv_int_frac(g_pioLcdTransport.pio, g_pioLcdTransport.sm, dividerInt, dividerFrac);
+
+  g_pioLcdTransport.requestedBitClockHz = requestedBitClockHz;
+  g_pioLcdTransport.configuredBitClockHz = effectiveBitClockHz;
+  g_pioLcdTransport.configuredSysClockHz = systemClockHz;
 }
 
 void sendPioBytes(const uint8_t *data, uint8_t count) {
   while (count > 0) {
-    pio_sm_put_blocking(g_transport.pio, g_transport.sm, static_cast<uint32_t>(*data) << 24);
+    pio_sm_put_blocking(g_pioLcdTransport.pio,
+                        g_pioLcdTransport.sm,
+                        static_cast<uint32_t>(*data) << 24);
     ++data;
     --count;
   }
 }
 
-void waitForPioTransferComplete() {
-  if (!g_transport.pioReady) {
+void waitForTransferComplete() {
+  if (!g_pioLcdTransport.available) {
     return;
   }
 
-  while (!pio_sm_is_tx_fifo_empty(g_transport.pio, g_transport.sm)) {
+  while (!pio_sm_is_tx_fifo_empty(g_pioLcdTransport.pio, g_pioLcdTransport.sm)) {
     tight_loop_contents();
   }
 
-  if (g_transport.configuredBitClockHz == 0) {
-    return;
-  }
-
-  const uint32_t drainDelayUs = (((kPioBitsPerByte + 2u) * 1000000u) + g_transport.configuredBitClockHz - 1u) /
-                                g_transport.configuredBitClockHz;
+  const uint32_t drainDelayUs =
+      (((kPioBitsPerByte + 2u) * 1000000u) + g_pioLcdTransport.configuredBitClockHz - 1u) /
+      g_pioLcdTransport.configuredBitClockHz;
   delayMicroseconds(max<uint32_t>(2u, drainDelayUs + 2u));
 }
 
-#endif
-
-bool initializeTransport(u8x8_t *u8x8) {
-  if (g_transport.initialized) {
-    return true;
-  }
-
-  cachePins(u8x8);
-  if (u8x8->bus_clock == 0) {
-    u8x8->bus_clock = u8x8->display_info->sck_clock_hz;
-  }
-
-  if (g_transport.csPin != U8X8_PIN_NONE) {
-    pinMode(g_transport.csPin, OUTPUT);
-  }
-  if (g_transport.dcPin != U8X8_PIN_NONE) {
-    pinMode(g_transport.dcPin, OUTPUT);
-  }
-  if (g_transport.resetPin != U8X8_PIN_NONE) {
-    pinMode(g_transport.resetPin, OUTPUT);
-    digitalWrite(g_transport.resetPin, HIGH);
-  }
-
-  setDataCommand(u8x8, 0);
-  setChipSelect(u8x8, u8x8->display_info->chip_disable_level);
-
-#if MK61EXT_HAS_ARDUINO_PICO_SOFTWARE_SPI
-  // Prefer Arduino-Pico SoftwareSPI when the core provides it.
-  g_transport.softwareSpi = new SoftwareSPI(g_transport.clockPin, NOPIN, g_transport.dataPin);
-  if (g_transport.softwareSpi == nullptr) {
-    return false;
-  }
-  g_transport.softwareSpi->begin();
-  g_transport.initialized = true;
-  return true;
-#elif MK61EXT_HAS_PIO_LCD_TRANSPORT
-  if (!initializePioTransport()) {
-    return false;
-  }
-  updatePioBitClock(u8x8->bus_clock);
-  g_transport.initialized = true;
-  return true;
-#else
-  (void)u8x8;
-  return false;
-#endif
-}
-
-extern "C" uint8_t u8x8_byte_mk61ext_spi_4wire(u8x8_t *u8x8,
+extern "C" uint8_t u8x8_byte_mk61ext_pio_4wire(u8x8_t *u8x8,
                                                uint8_t msg,
                                                uint8_t arg_int,
                                                void *arg_ptr) {
   switch (msg) {
+    case U8X8_MSG_BYTE_SEND:
+      if (!ensurePioTransportInitialized(u8x8)) {
+        return u8x8_byte_arduino_4wire_sw_spi(u8x8, msg, arg_int, arg_ptr);
+      }
+      sendPioBytes(static_cast<const uint8_t *>(arg_ptr), arg_int);
+      break;
+
     case U8X8_MSG_BYTE_INIT:
-      return initializeTransport(u8x8) ? 1 : 0;
+      if (u8x8->bus_clock == 0) {
+        u8x8->bus_clock = u8x8->display_info->sck_clock_hz;
+      }
+      u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
+      u8x8_gpio_SetSPIData(u8x8, 0);
+      u8x8_gpio_SetSPIClock(u8x8, u8x8_GetSPIClockDefaultLevel(u8x8));
+      if (!initializePioTransport(u8x8, 0, u8x8_GetSPIClockDefaultLevel(u8x8))) {
+        return u8x8_byte_arduino_4wire_sw_spi(u8x8, msg, arg_int, arg_ptr);
+      }
+      g_pioLcdTransport.requestedBitClockHz = u8x8->bus_clock;
+      updatePioBitClock(g_pioLcdTransport.requestedBitClockHz);
+      break;
 
     case U8X8_MSG_BYTE_SET_DC:
-      if (!initializeTransport(u8x8)) {
-        return 0;
+      if (!ensurePioTransportInitialized(u8x8)) {
+        return u8x8_byte_arduino_4wire_sw_spi(u8x8, msg, arg_int, arg_ptr);
       }
-      setDataCommand(u8x8, arg_int);
-      return 1;
+      u8x8_gpio_SetDC(u8x8, arg_int);
+      break;
 
     case U8X8_MSG_BYTE_START_TRANSFER:
-      if (!initializeTransport(u8x8)) {
-        return 0;
+      if (!ensurePioTransportInitialized(u8x8)) {
+        return u8x8_byte_arduino_4wire_sw_spi(u8x8, msg, arg_int, arg_ptr);
       }
-#if MK61EXT_HAS_ARDUINO_PICO_SOFTWARE_SPI
-      g_transport.softwareSpi->beginTransaction(SPISettings(u8x8->bus_clock, MSBFIRST, SPI_MODE0));
-#elif MK61EXT_HAS_PIO_LCD_TRANSPORT
       updatePioBitClock(u8x8->bus_clock);
-#endif
-      setChipSelect(u8x8, u8x8->display_info->chip_enable_level);
+      u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_enable_level);
       u8x8->gpio_and_delay_cb(
           u8x8, U8X8_MSG_DELAY_NANO, u8x8->display_info->post_chip_enable_wait_ns, nullptr);
-      return 1;
-
-    case U8X8_MSG_BYTE_SEND:
-      if (!initializeTransport(u8x8)) {
-        return 0;
-      }
-#if MK61EXT_HAS_ARDUINO_PICO_SOFTWARE_SPI
-      for (uint8_t index = 0; index < arg_int; ++index) {
-        g_transport.softwareSpi->transfer(static_cast<const uint8_t *>(arg_ptr)[index]);
-      }
-#elif MK61EXT_HAS_PIO_LCD_TRANSPORT
-      sendPioBytes(static_cast<const uint8_t *>(arg_ptr), arg_int);
-#endif
-      return 1;
+      break;
 
     case U8X8_MSG_BYTE_END_TRANSFER:
-      if (!initializeTransport(u8x8)) {
-        return 0;
+      if (!ensurePioTransportInitialized(u8x8)) {
+        return u8x8_byte_arduino_4wire_sw_spi(u8x8, msg, arg_int, arg_ptr);
       }
-#if MK61EXT_HAS_PIO_LCD_TRANSPORT && !MK61EXT_HAS_ARDUINO_PICO_SOFTWARE_SPI
-      waitForPioTransferComplete();
-#endif
+      waitForTransferComplete();
       u8x8->gpio_and_delay_cb(
           u8x8, U8X8_MSG_DELAY_NANO, u8x8->display_info->pre_chip_disable_wait_ns, nullptr);
-      setChipSelect(u8x8, u8x8->display_info->chip_disable_level);
-#if MK61EXT_HAS_ARDUINO_PICO_SOFTWARE_SPI
-      g_transport.softwareSpi->endTransaction();
-#endif
-      return 1;
+      u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
+      break;
 
     default:
       return 0;
   }
+
+  return 1;
 }
+
+#endif
 
 }  // namespace
 
@@ -318,7 +252,10 @@ Mk61extDisplay::Mk61extDisplay(const u8g2_cb_t *rotation,
                                uint8_t dc,
                                uint8_t reset)
     : U8G2() {
-  u8g2_Setup_st7565_erc12864_f(&u8g2, rotation, u8x8_byte_mk61ext_spi_4wire, u8x8_gpio_and_delay_arduino);
+#if MK61EXT_HAS_PIO_LCD_TRANSPORT && MK61EXT_ENABLE_PIO_LCD_TRANSPORT
+  u8g2_Setup_st7565_erc12864_f(&u8g2, rotation, u8x8_byte_mk61ext_pio_4wire, u8x8_gpio_and_delay_arduino);
+#else
+  u8g2_Setup_st7565_erc12864_f(&u8g2, rotation, u8x8_byte_arduino_4wire_sw_spi, u8x8_gpio_and_delay_arduino);
+#endif
   u8x8_SetPin_4Wire_SW_SPI(getU8x8(), clock, data, cs, dc, reset);
 }
-
