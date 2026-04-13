@@ -154,6 +154,7 @@ constexpr int kProgramListFirstY = 10;
 constexpr int kProgramListRowHeight = 9;
 constexpr uint8_t kProgramListVisibleRows = 6;
 constexpr uint8_t kProgramRunStepsPerLoop = 8;
+constexpr uint32_t kProgramRunDisplayRefreshMs = 1000;
 constexpr int kSettingsFirstRowY = 10;
 constexpr int kSettingsRowHeight = 7;
 constexpr int kSettingsCursorBoxWidth = 6;
@@ -324,6 +325,7 @@ bool runningOnBattery = true;
 std::array<uint8_t, ProgramVm::kProgramCapacity> savedProgramImage{};
 uint16_t savedProgramLength = 0;
 bool savedProgramImageValid = false;
+uint32_t lastProgramRunDisplayRefreshMs = 0;
 
 StoredSettings defaultStoredSettings() {
   StoredSettings settings{};
@@ -1818,21 +1820,35 @@ void setup() {
 }
 
 void loop() {
-  display.clearBuffer();
   updateInput();
   updateProgramExecution();
   updateSupplyVoltage();
   updateIdlePowerState();
-  if (settingsState.active) {
-    drawSettingsScreen();
-  } else if (helpState.enabled) {
-    drawHelpScreen();
-  } else if (programMode) {
-    drawProgramScreen();
+  bool shouldRefreshDisplay = true;
+  if (programRunner.isRunning()) {
+    const uint32_t now = millis();
+    if ((now - lastProgramRunDisplayRefreshMs) < kProgramRunDisplayRefreshMs) {
+      shouldRefreshDisplay = false;
+    } else {
+      lastProgramRunDisplayRefreshMs = now;
+    }
   } else {
-    drawCalculatorScreen();
+    lastProgramRunDisplayRefreshMs = 0;
   }
 
-  display.sendBuffer();
+  if (shouldRefreshDisplay) {
+    display.clearBuffer();
+    if (settingsState.active) {
+      drawSettingsScreen();
+    } else if (helpState.enabled) {
+      drawHelpScreen();
+    } else if (programMode) {
+      drawProgramScreen();
+    } else {
+      drawCalculatorScreen();
+    }
+
+    display.sendBuffer();
+  }
   delay(displaySleeping ? kSleepLoopDelayMs : kLoopDelayMs);
 }
