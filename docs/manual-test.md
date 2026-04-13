@@ -13,7 +13,7 @@ pio run -t upload
 1. Power on or reset the Pico.
 2. The display should show `memory found` for about 3 seconds.
 3. After the splash screen, the main screen should show:
-   - a filled top status bar such as `MK61 RAD RUN`,
+   - a filled top status bar such as `PC00 RAD RUN`,
    - a supply-voltage readout such as `4.12V` on the right side of that top bar,
    - four equal-height stack lines labeled `T:`, `Z:`, `Y:`, and `X:` or `X>`,
    - no framed register boxes or separator borders in the stack area.
@@ -51,7 +51,7 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 ## Functional Key Checks
 
 1. Press `e`.
-2. Confirm the status bar changes to `MK61 SET` and the stack view is replaced by a settings screen.
+2. Confirm the status bar changes to `SET` and the stack view is replaced by a settings screen.
 3. Confirm the settings list is numbered and shows `1. Brightness`, `2. Backlight`, `3. Sleep`, `4. Angle`, `5. Labels`, and `6. CPU freq`.
 4. Confirm the active `>` cursor is drawn inverted.
 5. Press `b`.
@@ -79,7 +79,7 @@ Also add I2C pull-ups from `SDA` to `3v3` and from `SCL` to `3v3`. The AT24C256C
 27. Press `e` again, repeat the same `Labels` toggle, then press `e`.
 28. Confirm the normal calculator screen returns and the visible stack labels now match the saved value.
 29. Press `f`.
-30. Confirm the status bar changes to `MK61 RAD HELP` and the stack view is replaced by help text.
+30. Confirm the status bar changes to `PC00 RAD HELP` and the stack view is replaced by help text.
 31. Press `7`.
 32. Confirm the help text explains digit `7` instead of changing the calculator stack.
 33. Press `f` again.
@@ -213,22 +213,22 @@ Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label 
 This verifies the new one-shot `F`/`K` prefix handling and the status-bar feedback.
 
 1. Press `k`.
-2. Confirm the left side of the top status bar shows `MK61 F RAD RUN` when the angle mode is `RAD`.
+2. Confirm the left side of the top status bar shows `PC00 F RAD RUN` when the angle mode is `RAD`.
 3. Press `.`.
-4. Confirm the prefix is consumed and the status bar returns to plain `MK61 RAD RUN`.
+4. Confirm the prefix is consumed and the status bar returns to plain `PC00 RAD RUN`.
 5. Press `p`.
-6. Confirm the left side of the top status bar shows `MK61 K RAD RUN`.
+6. Confirm the left side of the top status bar shows `PC00 K RAD RUN`.
 7. Press `4`.
-8. Confirm the prefix is consumed and the status bar returns to plain `MK61 RAD RUN`.
+8. Confirm the prefix is consumed and the status bar returns to plain `PC00 RAD RUN`.
 
 ## Help Mode Check
 
 This verifies that help mode can be entered with `f` and that keys show descriptions instead of acting while it is active.
 
 1. Press `f`.
-2. Confirm the left side of the top status bar shows `MK61 RAD HELP`.
+2. Confirm the left side of the top status bar shows `PC00 RAD HELP`.
 3. Press `k`.
-4. Confirm the left side of the top status bar now shows `MK61 RAD HELP F`.
+4. Confirm the left side of the top status bar now shows `PC00 RAD HELP F`.
 5. Press `7`.
 6. Confirm the screen shows help text for `sin` instead of changing the stack.
 7. Press `f`.
@@ -396,5 +396,5 @@ This verifies the recent keypad timing fix.
 - The `a` and `b` keys now control backlight brighter/dimmer again, `e` toggles the on-device help mode, and `c` is currently free for future extension work. While help mode is active, key presses show descriptions instead of performing their normal actions.
 - The currently wired `F`-layer now includes trig, inverse trig, powers, exponentials, logarithms, `LAST X`, and the earlier `R↓`, `sqrt`, `1/x`, and `pi` functions.
 - The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, `sign`, the hour/minute conversion functions, `RND`, and the first indirect-register commands `MXI` and `XMI`.
-- The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left, optionally prefixed by `F` or `K` when a one-shot prefix is armed, and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
+- The top status bar shows the current program counter as `PCxx` plus the calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left, optionally prefixed by `F` or `K` when a one-shot prefix is armed, and the most recent key/state event on the right when it fits. When the calculator is in an error state, the status bar shows the error text instead.
 - The stack area now uses four uniform text rows without frames or separator lines.

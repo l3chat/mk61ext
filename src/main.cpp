@@ -1470,16 +1470,26 @@ void formatStatusRightText(char *buffer, size_t bufferSize) {
 void drawStatusBar() {
   char leftBuffer[32];
   char rightBuffer[18];
+  const unsigned runAddress = static_cast<unsigned>(programRunner.runAddress());
 
   if (settingsState.active) {
-    snprintf(leftBuffer, sizeof(leftBuffer), "MK61 SET");
+    snprintf(leftBuffer, sizeof(leftBuffer), "SET");
     snprintf(rightBuffer, sizeof(rightBuffer), "e OK f ESC");
   } else if (helpState.enabled) {
     const char *prefixName = activeCalculatorPrefixName();
     if (prefixName[0] != '\0') {
-      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s HELP %s", angleModeShortName(calculator.angleMode()), prefixName);
+      snprintf(leftBuffer,
+               sizeof(leftBuffer),
+               "PC%02X %s HELP %s",
+               runAddress,
+               angleModeShortName(calculator.angleMode()),
+               prefixName);
     } else {
-      snprintf(leftBuffer, sizeof(leftBuffer), "MK61 %s HELP", angleModeShortName(calculator.angleMode()));
+      snprintf(leftBuffer,
+               sizeof(leftBuffer),
+               "PC%02X %s HELP",
+               runAddress,
+               angleModeShortName(calculator.angleMode()));
     }
     formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (programMode) {
@@ -1500,20 +1510,21 @@ void drawStatusBar() {
   } else if (programRunner.hasError()) {
     snprintf(leftBuffer,
              sizeof(leftBuffer),
-             "VM %s P%02X",
-             programRunnerErrorShortName(programRunner.error()),
-             static_cast<unsigned>(programRunner.runAddress()));
+             "PC%02X VM %s",
+             runAddress,
+             programRunnerErrorShortName(programRunner.error()));
     formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (programRunner.isRunning()) {
-    snprintf(leftBuffer, sizeof(leftBuffer), "RUN P%02X", static_cast<unsigned>(programRunner.runAddress()));
+    snprintf(leftBuffer, sizeof(leftBuffer), "PC%02X RUN", runAddress);
     formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (calculator.hasError()) {
-    snprintf(leftBuffer, sizeof(leftBuffer), "ERR %s", calculator.errorMessage());
+    snprintf(leftBuffer, sizeof(leftBuffer), "PC%02X ERR %s", runAddress, calculator.errorMessage());
     formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (pendingRegisterOperation != PendingRegisterOperation::None) {
     snprintf(leftBuffer,
              sizeof(leftBuffer),
-             "MK61 %s %s",
+             "PC%02X %s %s",
+             runAddress,
              angleModeShortName(calculator.angleMode()),
              pendingRegisterOperationName());
     formatStatusRightText(rightBuffer, sizeof(rightBuffer));
@@ -1522,14 +1533,16 @@ void drawStatusBar() {
     if (prefixName[0] != '\0') {
       snprintf(leftBuffer,
                sizeof(leftBuffer),
-               "MK61 %s %s %s",
+               "PC%02X %s %s %s",
+               runAddress,
                prefixName,
                angleModeShortName(calculator.angleMode()),
                calculatorModeName());
     } else {
       snprintf(leftBuffer,
                sizeof(leftBuffer),
-               "MK61 %s %s",
+               "PC%02X %s %s",
+               runAddress,
                angleModeShortName(calculator.angleMode()),
                calculatorModeName());
     }
@@ -1540,7 +1553,8 @@ void drawStatusBar() {
   display.drawBox(0, 0, kDisplayWidth, kStatusBarHeight);
   display.setDrawColor(0);
   display.drawStr(2, 1, leftBuffer);
-  if (rightBuffer[0] != '\0') {
+  if ((rightBuffer[0] != '\0') &&
+      ((display.getStrWidth(leftBuffer) + display.getStrWidth(rightBuffer) + 6) < kDisplayWidth)) {
     drawRightAlignedText(kDisplayWidth - 2, 1, rightBuffer);
   }
   display.setDrawColor(1);
