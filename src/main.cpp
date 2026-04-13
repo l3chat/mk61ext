@@ -154,7 +154,6 @@ constexpr int kProgramListFirstY = 10;
 constexpr int kProgramListRowHeight = 9;
 constexpr uint8_t kProgramListVisibleRows = 6;
 constexpr uint8_t kProgramRunStepsPerLoop = 8;
-constexpr uint32_t kProgramRunDisplayRefreshMs = 1000;
 constexpr int kSettingsFirstRowY = 10;
 constexpr int kSettingsRowHeight = 7;
 constexpr int kSettingsCursorBoxWidth = 6;
@@ -166,8 +165,9 @@ constexpr uint32_t kSettingsEepromReservedBytes = 256;
 constexpr uint32_t kProgramEepromAddress = kSettingsEepromAddress + kSettingsEepromReservedBytes;
 constexpr uint16_t kProgramEepromReservedBytes = ProgramVm::kProgramCapacity;
 constexpr uint32_t kSettingsMagic = 0x4D4B3631u;  // "MK61"
-constexpr uint8_t kLegacySettingsVersion = 3;
-constexpr uint8_t kSettingsVersion = 4;
+constexpr uint8_t kOlderSettingsVersion = 3;
+constexpr uint8_t kLegacySettingsVersion = 4;
+constexpr uint8_t kSettingsVersion = 5;
 constexpr uint8_t kSupplyAdcResolutionBits = 12;
 constexpr uint16_t kSupplyAdcMaxReading = (1u << kSupplyAdcResolutionBits) - 1u;
 constexpr uint8_t kSupplySampleCount = 8;
@@ -197,6 +197,18 @@ constexpr TimeoutOption kTimeoutOptions[] = {
 constexpr uint8_t kTimeoutOptionCount = sizeof(kTimeoutOptions) / sizeof(kTimeoutOptions[0]);
 constexpr uint8_t kDefaultBacklightTimeoutIndex = 0;
 constexpr uint8_t kDefaultSleepTimeoutIndex = 0;
+
+constexpr TimeoutOption kProgramRunDisplayRefreshOptions[] = {
+    {100u, "100 ms"},
+    {250u, "250 ms"},
+    {500u, "500 ms"},
+    {1000u, "1 s"},
+    {2000u, "2 s"},
+};
+
+constexpr uint8_t kProgramRunDisplayRefreshOptionCount =
+    sizeof(kProgramRunDisplayRefreshOptions) / sizeof(kProgramRunDisplayRefreshOptions[0]);
+constexpr uint8_t kDefaultProgramRunDisplayRefreshIndex = 3;
 
 #if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
 struct CpuFrequencyOption {
@@ -246,7 +258,8 @@ struct StoredSettings {
   uint8_t cpuFrequencyIndex = kDefaultCpuFrequencyIndex;
   uint16_t brightness = 0;
   uint16_t programLength = 0;
-  uint8_t reserved[5] = {};
+  uint8_t programRunDisplayRefreshIndex = kDefaultProgramRunDisplayRefreshIndex;
+  uint8_t reserved[4] = {};
 };
 
 static_assert(kSettingsEepromReservedBytes == 256, "settings EEPROM block must be 256 bytes");
@@ -273,15 +286,17 @@ enum class SettingsItem : uint8_t {
   Brightness = 0,
   BacklightTimeout = 1,
   SleepTimeout = 2,
-  AngleMode = 3,
-  StackLabels = 4,
-  CpuFrequency = 5,
+  RunDisplayRefresh = 3,
+  AngleMode = 4,
+  StackLabels = 5,
+  CpuFrequency = 6,
 };
 
 constexpr SettingsItem kSettingsItems[] = {
     SettingsItem::Brightness,
     SettingsItem::BacklightTimeout,
     SettingsItem::SleepTimeout,
+    SettingsItem::RunDisplayRefresh,
     SettingsItem::AngleMode,
     SettingsItem::StackLabels,
     SettingsItem::CpuFrequency,
@@ -310,6 +325,7 @@ bool eepromReady = false;
 uint8_t backlightTimeoutIndex = kDefaultBacklightTimeoutIndex;
 uint8_t sleepTimeoutIndex = kDefaultSleepTimeoutIndex;
 uint8_t cpuFrequencyIndex = kDefaultCpuFrequencyIndex;
+uint8_t programRunDisplayRefreshIndex = kDefaultProgramRunDisplayRefreshIndex;
 bool backlightTimedOut = false;
 bool displaySleeping = false;
 uint32_t lastUserActivityMs = 0;
@@ -408,6 +424,22 @@ uint32_t timeoutMilliseconds(uint8_t index) {
   return kTimeoutOptions[index].milliseconds;
 }
 
+uint32_t programRunDisplayRefreshMilliseconds(uint8_t index) {
+  if (index >= kProgramRunDisplayRefreshOptionCount) {
+    return kProgramRunDisplayRefreshOptions[kDefaultProgramRunDisplayRefreshIndex].milliseconds;
+  }
+
+  return kProgramRunDisplayRefreshOptions[index].milliseconds;
+}
+
+const char *programRunDisplayRefreshLabel(uint8_t index) {
+  if (index >= kProgramRunDisplayRefreshOptionCount) {
+    return kProgramRunDisplayRefreshOptions[kDefaultProgramRunDisplayRefreshIndex].label;
+  }
+
+  return kProgramRunDisplayRefreshOptions[index].label;
+}
+
 const char *timeoutLabel(uint8_t index) {
   if (index >= kTimeoutOptionCount) {
     return kTimeoutOptions[kDefaultBacklightTimeoutIndex].label;
@@ -500,7 +532,8 @@ bool isValidStoredSettings(const StoredSettings &settings) {
     return false;
   }
 
-  if ((settings.version != kSettingsVersion) && (settings.version != kLegacySettingsVersion)) {
+  if ((settings.version != kSettingsVersion) && (settings.version != kLegacySettingsVersion) &&
+      (settings.version != kOlderSettingsVersion)) {
     return false;
   }
 
@@ -520,13 +553,18 @@ bool isValidStoredSettings(const StoredSettings &settings) {
     return false;
   }
 
+  if ((settings.version == kSettingsVersion) &&
+      (settings.programRunDisplayRefreshIndex >= kProgramRunDisplayRefreshOptionCount)) {
+    return false;
+  }
+
 #if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
   if (settings.cpuFrequencyIndex >= kCpuFrequencyOptionCount) {
     return false;
   }
 #endif
 
-  if ((settings.version == kSettingsVersion) &&
+  if ((settings.version != kOlderSettingsVersion) &&
       (settings.programLength > ProgramVm::kProgramCapacity)) {
     return false;
   }
@@ -539,8 +577,12 @@ bool normalizeStoredSettings(StoredSettings &settings) {
     return false;
   }
 
+  const uint8_t previousVersion = settings.version;
   settings.version = kSettingsVersion;
-  settings.programLength = 0;
+  settings.programRunDisplayRefreshIndex = kDefaultProgramRunDisplayRefreshIndex;
+  if (previousVersion == kOlderSettingsVersion) {
+    settings.programLength = 0;
+  }
   std::memset(settings.reserved, 0, sizeof(settings.reserved));
   return true;
 }
@@ -552,6 +594,7 @@ StoredSettings currentStoredSettings() {
   settings.backlightTimeoutIndex = backlightTimeoutIndex;
   settings.sleepTimeoutIndex = sleepTimeoutIndex;
   settings.cpuFrequencyIndex = cpuFrequencyIndex;
+  settings.programRunDisplayRefreshIndex = programRunDisplayRefreshIndex;
   settings.brightness = static_cast<uint16_t>(brightness);
   settings.programLength = savedProgramLength;
   return settings;
@@ -639,6 +682,7 @@ void saveSettings(const StoredSettings &settings) {
 void applyStoredSettings(const StoredSettings &settings) {
   backlightTimeoutIndex = settings.backlightTimeoutIndex;
   sleepTimeoutIndex = settings.sleepTimeoutIndex;
+  programRunDisplayRefreshIndex = settings.programRunDisplayRefreshIndex;
   brightness = settings.brightness;
   showStackLevelNames = settings.showStackLabels != 0;
   calculator.setAngleMode(static_cast<CalculatorAngleMode>(settings.angleMode));
@@ -771,6 +815,8 @@ const char *settingsItemName(SettingsItem item) {
       return "Backlight";
     case SettingsItem::SleepTimeout:
       return "Sleep";
+    case SettingsItem::RunDisplayRefresh:
+      return "Run screen";
     case SettingsItem::AngleMode:
       return "Angle";
     case SettingsItem::StackLabels:
@@ -809,6 +855,9 @@ void formatSettingValue(SettingsItem item,
     case SettingsItem::SleepTimeout:
       snprintf(buffer, bufferSize, "%s", timeoutLabel(settings.sleepTimeoutIndex));
       return;
+    case SettingsItem::RunDisplayRefresh:
+      snprintf(buffer, bufferSize, "%s", programRunDisplayRefreshLabel(settings.programRunDisplayRefreshIndex));
+      return;
     case SettingsItem::AngleMode:
       snprintf(buffer,
                bufferSize,
@@ -834,6 +883,8 @@ const char *settingsItemDescription(SettingsItem item) {
       return "Switch off the backlight after inactivity on battery.";
     case SettingsItem::SleepTimeout:
       return "Put the system into energy-saving mode after inactivity on battery.";
+    case SettingsItem::RunDisplayRefresh:
+      return "Set screen refresh rate while programs are running.";
     case SettingsItem::AngleMode:
       return "Choose RAD, GRD, or DEG.";
     case SettingsItem::StackLabels:
@@ -944,6 +995,12 @@ void adjustSelectedSetting(bool increase) {
     case SettingsItem::SleepTimeout:
       settingsState.stagedSettings.sleepTimeoutIndex =
           wrapOptionIndex(settingsState.stagedSettings.sleepTimeoutIndex, kTimeoutOptionCount, increase);
+      break;
+    case SettingsItem::RunDisplayRefresh:
+      settingsState.stagedSettings.programRunDisplayRefreshIndex =
+          wrapOptionIndex(settingsState.stagedSettings.programRunDisplayRefreshIndex,
+                          kProgramRunDisplayRefreshOptionCount,
+                          increase);
       break;
     case SettingsItem::AngleMode: {
       const CalculatorAngleMode currentMode =
@@ -1703,12 +1760,15 @@ void drawSettingsScreen() {
   }
 
   display.setFont(u8g2_font_4x6_mr);
-  drawWrappedText(0,
-                  kSettingsDescriptionY,
-                  settingsItemDescription(kSettingsItems[settingsState.selectedIndex]),
-                  kHelpTextWidth,
-                  kSettingsDescriptionLineCount,
-                  kSettingsDescriptionLineHeight);
+  const int settingsRowsBottom = kSettingsFirstRowY + ((kSettingsItemCount - 1) * kSettingsRowHeight) + 7;
+  if ((settingsRowsBottom + kSettingsDescriptionLineHeight) <= 64) {
+    drawWrappedText(0,
+                    kSettingsDescriptionY,
+                    settingsItemDescription(kSettingsItems[settingsState.selectedIndex]),
+                    kHelpTextWidth,
+                    kSettingsDescriptionLineCount,
+                    kSettingsDescriptionLineHeight);
+  }
 }
 
 void drawProgramScreen() {
@@ -1827,7 +1887,8 @@ void loop() {
   bool shouldRefreshDisplay = true;
   if (programRunner.isRunning()) {
     const uint32_t now = millis();
-    if ((now - lastProgramRunDisplayRefreshMs) < kProgramRunDisplayRefreshMs) {
+    const uint32_t refreshMs = programRunDisplayRefreshMilliseconds(programRunDisplayRefreshIndex);
+    if ((refreshMs > 0) && ((now - lastProgramRunDisplayRefreshMs) < refreshMs)) {
       shouldRefreshDisplay = false;
     } else {
       lastProgramRunDisplayRefreshMs = now;
