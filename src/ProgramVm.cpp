@@ -304,7 +304,7 @@ bool ProgramVm::setProgramLength(uint16_t length) {
   return true;
 }
 
-uint8_t ProgramVm::programByte(uint8_t address) const {
+uint8_t ProgramVm::programByte(uint16_t address) const {
   if (address >= programLength_) {
     return 0;
   }

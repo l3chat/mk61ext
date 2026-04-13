@@ -24,6 +24,7 @@ The displayed voltage is measured from Pico `VSYS` through the board's built-in 
 ## EEPROM Wiring Reference
 
 The current firmware expects an AT24C256C-compatible EEPROM at I2C address `0x50`.
+The first 256 bytes are reserved for device settings, and the next 256 bytes are reserved for the current 256-byte program image.
 
 1. Connect pin 1 `A0` to `GND`.
 2. Connect pin 2 `A1` to `GND`.
@@ -128,6 +129,8 @@ The current provisional MK-61-inspired run-mode subset is:
 - `o`: run or stop the stored program at the current run address
 - `n`: reset the program run address to `00`
 - `t`: execute one stored program step from the current run address (`SST`)
+- `g`: save the current program image to EEPROM
+- `h`: restore the saved EEPROM program image, replacing the current program in RAM
 - `e`: open the settings screen
 - while the settings screen is open:
   - `a` / `b`: select the previous / next setting
@@ -141,7 +144,18 @@ Trigonometric functions now use the active saved angle mode (`RAD`, `GRD`, or `D
 Indirect register access currently uses the whole-number part of the pointer register wrapped across registers `0`-`f`, with pointer registers `4`-`6` pre-incremented and `0`-`3` post-decremented.
 While `ENT` or `EEX` is active, `CX` now works like a backspace key and removes the last entry character; outside entry it still clears `X`.
 Mantissa entry is currently limited to 16 significant digits. Additional mantissa digits are rejected immediately so the calculator does not pretend to preserve a longer exact value than the numeric core can reasonably carry.
-Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label visibility, and CPU frequency are staged in the settings screen, saved to EEPROM when you leave that screen with `e`, and restored again at boot. The timeout list now reaches `15 min`, and the backlight/sleep timeouts are only active while the unit is running on battery power. When the battery-only sleep timeout expires, the LCD enters power-save and the first key only wakes the screen.
+Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label visibility, and CPU frequency are staged in the settings screen, saved to EEPROM when you leave that screen with `e`, and restored again at boot. Program save/restore is explicit: `g` saves the current program image to the separate EEPROM program block, and `h` restores that saved image on demand. The timeout list now reaches `15 min`, and the backlight/sleep timeouts are only active while the unit is running on battery power. When the battery-only sleep timeout expires, the LCD enters power-save and the first key only wakes the screen.
+
+## Program EEPROM Persistence Check
+
+1. Enter program mode with `k`, then `y`.
+2. Use `m` (`BST`) until the cursor is at address `00`, then press `1` to record or replace that step with digit `1`.
+3. Press `g` to save the current program image to EEPROM.
+4. Leave program mode with `k`, then `x`.
+5. Reset or power-cycle the Pico.
+6. Press `h` to restore the saved program image from EEPROM.
+7. Enter program mode again with `k`, then `y`.
+8. Confirm the listing still contains `00: 01      1`.
 
 ## Idle Power Check
 

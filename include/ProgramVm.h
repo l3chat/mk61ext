@@ -40,7 +40,7 @@ public:
   bool setProgramLength(uint16_t length);
 
   uint16_t programLength() const { return programLength_; }
-  uint8_t programByte(uint8_t address) const;
+  uint8_t programByte(uint16_t address) const;
 
   bool isStepBoundary(uint8_t address) const;
   uint8_t nextStepAddress(uint8_t address) const;

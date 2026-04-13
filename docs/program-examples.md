@@ -14,7 +14,7 @@ They intentionally stay small enough to type in by hand on the current hardware.
 
 ## Before You Start
 
-- Program memory is currently volatile. If you want a clean empty program, reset or power-cycle the device first.
+- Program memory lives in RAM while you edit. Press `g` to save the current program to EEPROM, and press `h` to restore the saved program when you want it back.
 - Enter program mode with `k`, then `y` (`F PRG`).
 - Return to calculator mode with `k`, then `x` (`F RUN`).
 - Run the current program with `o`.

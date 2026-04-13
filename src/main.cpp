@@ -161,8 +161,12 @@ constexpr int kSettingsDescriptionY = 52;
 constexpr int kSettingsDescriptionLineHeight = 6;
 constexpr uint8_t kSettingsDescriptionLineCount = 2;
 constexpr uint32_t kSettingsEepromAddress = 0;
+constexpr uint32_t kSettingsEepromReservedBytes = 256;
+constexpr uint32_t kProgramEepromAddress = kSettingsEepromAddress + kSettingsEepromReservedBytes;
+constexpr uint16_t kProgramEepromReservedBytes = ProgramVm::kProgramCapacity;
 constexpr uint32_t kSettingsMagic = 0x4D4B3631u;  // "MK61"
-constexpr uint8_t kSettingsVersion = 3;
+constexpr uint8_t kLegacySettingsVersion = 3;
+constexpr uint8_t kSettingsVersion = 4;
 constexpr uint8_t kSupplyAdcResolutionBits = 12;
 constexpr uint16_t kSupplyAdcMaxReading = (1u << kSupplyAdcResolutionBits) - 1u;
 constexpr uint8_t kSupplySampleCount = 8;
@@ -240,8 +244,14 @@ struct StoredSettings {
   uint8_t sleepTimeoutIndex = kDefaultSleepTimeoutIndex;
   uint8_t cpuFrequencyIndex = kDefaultCpuFrequencyIndex;
   uint16_t brightness = 0;
-  uint8_t reserved[7] = {};
+  uint16_t programLength = 0;
+  uint8_t reserved[5] = {};
 };
+
+static_assert(kSettingsEepromReservedBytes == 256, "settings EEPROM block must be 256 bytes");
+static_assert(kProgramEepromReservedBytes == 256, "program EEPROM block must be 256 bytes");
+static_assert(sizeof(StoredSettings) <= kSettingsEepromReservedBytes,
+              "stored settings must fit in the reserved EEPROM settings block");
 
 struct SettingsState {
   bool active = false;
@@ -311,6 +321,9 @@ uint8_t programEditAddress = 0;
 float supplyVoltage = NAN;
 uint32_t lastSupplySampleMs = 0;
 bool runningOnBattery = true;
+std::array<uint8_t, ProgramVm::kProgramCapacity> savedProgramImage{};
+uint16_t savedProgramLength = 0;
+bool savedProgramImageValid = false;
 
 StoredSettings defaultStoredSettings() {
   StoredSettings settings{};
@@ -466,6 +479,7 @@ bool applyCpuFrequencySetting(uint8_t index) {
 
 void applyBrightness();
 void updatePowerSourceState();
+void normalizeProgramEditAddress();
 
 void noteUserActivity() {
   lastUserActivityMs = millis();
@@ -480,7 +494,11 @@ void noteUserActivity() {
 }
 
 bool isValidStoredSettings(const StoredSettings &settings) {
-  if ((settings.magic != kSettingsMagic) || (settings.version != kSettingsVersion)) {
+  if (settings.magic != kSettingsMagic) {
+    return false;
+  }
+
+  if ((settings.version != kSettingsVersion) && (settings.version != kLegacySettingsVersion)) {
     return false;
   }
 
@@ -506,6 +524,22 @@ bool isValidStoredSettings(const StoredSettings &settings) {
   }
 #endif
 
+  if ((settings.version == kSettingsVersion) &&
+      (settings.programLength > ProgramVm::kProgramCapacity)) {
+    return false;
+  }
+
+  return true;
+}
+
+bool normalizeStoredSettings(StoredSettings &settings) {
+  if (settings.version == kSettingsVersion) {
+    return false;
+  }
+
+  settings.version = kSettingsVersion;
+  settings.programLength = 0;
+  std::memset(settings.reserved, 0, sizeof(settings.reserved));
   return true;
 }
 
@@ -517,6 +551,7 @@ StoredSettings currentStoredSettings() {
   settings.sleepTimeoutIndex = sleepTimeoutIndex;
   settings.cpuFrequencyIndex = cpuFrequencyIndex;
   settings.brightness = static_cast<uint16_t>(brightness);
+  settings.programLength = savedProgramLength;
   return settings;
 }
 
@@ -618,12 +653,97 @@ void loadSettings() {
 
   if (!isValidStoredSettings(settings)) {
     settings = defaultStoredSettings();
+    savedProgramLength = settings.programLength;
+    savedProgramImageValid = false;
     applyStoredSettings(settings);
     saveSettings(settings);
     return;
   }
 
+  const bool migrated = normalizeStoredSettings(settings);
+  savedProgramLength = settings.programLength;
+  savedProgramImageValid = false;
   applyStoredSettings(settings);
+  if (migrated) {
+    saveSettings(settings);
+  }
+}
+
+bool restoreProgramFromEeprom() {
+  if (!eepromReady) {
+    return false;
+  }
+
+  if (savedProgramLength > ProgramVm::kProgramCapacity) {
+    programVm.reset();
+    savedProgramLength = 0;
+    savedProgramImageValid = false;
+    return false;
+  }
+
+  savedProgramImage.fill(0);
+  std::array<uint8_t, ProgramVm::kProgramCapacity> programBytes{};
+  for (uint16_t index = 0; index < savedProgramLength; ++index) {
+    uint8_t value = 0;
+    eeprom.get(kProgramEepromAddress + index, value);
+    programBytes[index] = value;
+    savedProgramImage[index] = value;
+  }
+
+  if (!programVm.loadProgram(programBytes.data(), savedProgramLength)) {
+    programVm.reset();
+    savedProgramImage.fill(0);
+    savedProgramLength = 0;
+    savedProgramImageValid = false;
+    saveSettings(currentStoredSettings());
+    return false;
+  }
+
+  savedProgramImageValid = true;
+  programEditAddress = 0;
+  programRecorder.reset();
+  programRunner.stop();
+  programRunner.clearPausedExecution();
+  programRunner.resetRunAddress();
+  normalizeProgramEditAddress();
+  return true;
+}
+
+bool saveProgramToEeprom() {
+  if (!eepromReady) {
+    return false;
+  }
+
+  if (savedProgramLength > ProgramVm::kProgramCapacity) {
+    return false;
+  }
+
+  if (!savedProgramImageValid && (savedProgramLength <= ProgramVm::kProgramCapacity)) {
+    savedProgramImage.fill(0);
+    for (uint16_t index = 0; index < savedProgramLength; ++index) {
+      uint8_t value = 0;
+      eeprom.get(kProgramEepromAddress + index, value);
+      savedProgramImage[index] = value;
+    }
+    savedProgramImageValid = true;
+  }
+
+  const uint16_t length = programVm.programLength();
+  const uint16_t previousSavedLength = savedProgramLength;
+  const uint16_t writeLimit = (length > previousSavedLength) ? length : previousSavedLength;
+  for (uint16_t index = 0; index < writeLimit; ++index) {
+    const uint8_t value = (index < length) ? programVm.programByte(index) : 0;
+    if (!savedProgramImageValid || (index >= previousSavedLength) || (savedProgramImage[index] != value)) {
+      (void)eeprom.putChanged(kProgramEepromAddress + index, value);
+    }
+
+    savedProgramImage[index] = value;
+  }
+
+  savedProgramLength = length;
+  savedProgramImageValid = true;
+  saveSettings(currentStoredSettings());
+  return true;
 }
 
 uint16_t increaseBrightnessValue(uint16_t value) {
@@ -1019,6 +1139,18 @@ void handleProgramPressedKey(char keyPressed) {
     return;
   }
 
+  if (!programRecorder.hasPendingOperand() && (programRecorder.activePrefixName()[0] == '\0')) {
+    if (keyPressed == 'g') {
+      (void)saveProgramToEeprom();
+      return;
+    }
+
+    if (keyPressed == 'h') {
+      (void)restoreProgramFromEeprom();
+      return;
+    }
+  }
+
   (void)programRecorder.handleKey(programVm, programEditAddress, keyPressed);
 }
 
@@ -1076,6 +1208,16 @@ void handlePressedKey(char keyPressed) {
 
   if (runControlContext && (keyPressed == 't')) {
     (void)programRunner.singleStep(programVm, calculator);
+    return;
+  }
+
+  if (runControlContext && (keyPressed == 'g')) {
+    (void)saveProgramToEeprom();
+    return;
+  }
+
+  if (runControlContext && (keyPressed == 'h')) {
+    (void)restoreProgramFromEeprom();
     return;
   }
 

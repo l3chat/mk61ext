@@ -40,8 +40,8 @@ These rows are reserved for mk61ext-specific features in the long term, but a fe
 | `d` | `SET +` | Current firmware increases or toggles the selected settings item; the longer-term extension slot is still open. |
 | `e` | `SETTINGS` | Current firmware opens the settings screen; on that screen `e` saves staged brightness, idle-timeout, sleep-timeout, angle, label, and CPU-frequency changes to EEPROM. The timeout list now reaches `15 min`, and those idle timeouts are only active on battery power. The longer-term extension slot is still open. |
 | `f` | `HELP` | Current firmware toggles help mode on this key outside settings; while the settings screen is open, the same key cancels staged changes and restores the earlier values. The longer-term extension slot is still open. |
-| `g` | *`EXT7`* | Reserved for mk61ext-specific features. |
-| `h` | *`EXT8`* | Reserved for mk61ext-specific features. |
+| `g` | `SAVE PRG` | Current firmware saves the current program image to the program EEPROM block on demand. |
+| `h` | `LOAD PRG` | Current firmware restores the saved program image from EEPROM on demand, replacing the current program in RAM. |
 | `i` | *`EXT9`* | Reserved for mk61ext-specific features. |
 | `j` | *`EXT10`* | Reserved for mk61ext-specific features. |
 

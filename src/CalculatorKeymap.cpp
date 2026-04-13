@@ -11,8 +11,8 @@ constexpr CalculatorKeyAssignment kPlannedAssignments[] = {
     {'d', "EXT4", "", ""},
     {'e', "EXT5", "", ""},
     {'f', "EXT6", "", ""},
-    {'g', "EXT7", "", ""},
-    {'h', "EXT8", "", ""},
+    {'g', "SAVE PRG", "", ""},
+    {'h', "LOAD PRG", "", ""},
     {'i', "EXT9", "", ""},
     {'j', "EXT10", "", ""},
     {'k', "F", "", ""},
@@ -136,6 +136,12 @@ const char *helpDescriptionForLabel(const char *label) {
   if (labelEquals(label, "HELP")) {
     return "Toggle help mode on or off. In help mode, key presses show descriptions instead of acting. Press f again to leave help. While the settings screen is open, f cancels and restores the earlier values.";
   }
+  if (labelEquals(label, "SAVE PRG")) {
+    return "Save the current program to EEPROM.";
+  }
+  if (labelEquals(label, "LOAD PRG")) {
+    return "Restore the saved EEPROM program, replacing the current program.";
+  }
   if (labelEquals(label, "F")) {
     return "Arm the one-shot F prefix. Press the next key to inspect or use its F-shifted meaning.";
   }
@@ -248,7 +254,7 @@ const char *helpDescriptionForLabel(const char *label) {
     return "Start entering the exponent for the current number.";
   }
   if (labelEquals(label, "PRG")) {
-    return "Enter programming mode.";
+    return "Enter programming mode. Use g to save the current program and h to restore the saved program.";
   }
   if (labelEquals(label, "CX")) {
     return "Delete the last entry character while typing a number. Outside entry, clear the X register.";
