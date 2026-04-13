@@ -29,6 +29,8 @@ public:
   bool start(const ProgramVm &vm, RpnCalculator &calculator);
   void stop();
   void resetRunAddress();
+  void clearPausedExecution();
+  bool singleStep(const ProgramVm &vm, RpnCalculator &calculator);
   bool step(const ProgramVm &vm, RpnCalculator &calculator);
 
   uint8_t runAddress() const { return runAddress_; }
@@ -49,6 +51,7 @@ private:
   uint8_t callDepth_ = 0;
   uint8_t runAddress_ = 0;
   bool running_ = false;
+  bool pausedExecution_ = false;
   ProgramRunnerError error_ = ProgramRunnerError::None;
 };
 

@@ -21,10 +21,10 @@ constexpr CalculatorKeyAssignment kPlannedAssignments[] = {
     {'n', "RTN/0", "JP X>=0", "JPI X>=0"},
     {'o', "R/S", "JP X<>0", "JPI X<>0"},
     {'p', "K", "", ""},
-    {'q', "RCL", "DSNZ0", "RCLI"},
-    {'r', "STO", "DSNZ1", "STOI"},
-    {'s', "GTO", "DSNZ2", "JPI"},
-    {'t', "GSB/SST", "DSNZ3", "GSBI"},
+    {'q', "MX", "L0", "MXI"},
+    {'r', "XM", "L1", "XMI"},
+    {'s', "GTO", "L2", "JPI"},
+    {'t', "GSB/SST", "L3", "GSBI"},
     {'7', "7", "sin", "INT"},
     {'8', "8", "cos", "FRAC"},
     {'9', "9", "tg", "max"},
@@ -154,17 +154,17 @@ const char *helpDescriptionForLabel(const char *label) {
   if (labelEquals(label, "R/S")) {
     return "Run or stop a stored program.";
   }
-  if (labelEquals(label, "RCL")) {
-    return "Arm direct register recall. Press 0-9, or use . x y z v u for registers a-f. The recalled value lifts the stack into X.";
+  if (labelEquals(label, "MX")) {
+    return "Arm direct memory-to-X recall. Press 0-9, or use . x y z v u for registers a-f. The recalled value lifts the stack into X.";
   }
-  if (labelEquals(label, "STO")) {
-    return "Arm direct register store. Press 0-9, or use . x y z v u for registers a-f.";
+  if (labelEquals(label, "XM")) {
+    return "Arm direct X-to-memory store. Press 0-9, or use . x y z v u for registers a-f.";
   }
   if (labelEquals(label, "GTO")) {
     return "Jump to the specified program address.";
   }
   if (labelEquals(label, "GSB/SST")) {
-    return "Single-step a program in run mode, or call a subroutine in program mode.";
+    return "Execute one stored program step from the current run address. In program mode, record a GSB subroutine call.";
   }
   if (labelEquals(label, ".")) {
     return "Enter the decimal point while typing a number.";
@@ -325,23 +325,23 @@ const char *helpDescriptionForLabel(const char *label) {
   if (labelEquals(label, "JPI X<>0")) {
     return "Planned indirect conditional jump when X is not zero.";
   }
-  if (labelEquals(label, "DSNZ0")) {
+  if (labelEquals(label, "L0")) {
     return "Planned loop control: decrement register 0 and branch while it stays non-zero.";
   }
-  if (labelEquals(label, "DSNZ1")) {
+  if (labelEquals(label, "L1")) {
     return "Planned loop control: decrement register 1 and branch while it stays non-zero.";
   }
-  if (labelEquals(label, "DSNZ2")) {
+  if (labelEquals(label, "L2")) {
     return "Planned loop control: decrement register 2 and branch while it stays non-zero.";
   }
-  if (labelEquals(label, "DSNZ3")) {
+  if (labelEquals(label, "L3")) {
     return "Planned loop control: decrement register 3 and branch while it stays non-zero.";
   }
-  if (labelEquals(label, "RCLI")) {
-    return "Arm indirect recall. Pick a pointer register with 0-9 or . x y z v u; 4-6 pre-increment and 0-3 post-decrement. The recalled value lifts the stack into X.";
+  if (labelEquals(label, "MXI")) {
+    return "Arm indirect memory-to-X recall. Pick a pointer register with 0-9 or . x y z v u; 4-6 pre-increment and 0-3 post-decrement. The recalled value lifts the stack into X.";
   }
-  if (labelEquals(label, "STOI")) {
-    return "Arm indirect store. Pick a pointer register with 0-9 or . x y z v u; 4-6 pre-increment and 0-3 post-decrement.";
+  if (labelEquals(label, "XMI")) {
+    return "Arm indirect X-to-memory store. Pick a pointer register with 0-9 or . x y z v u; 4-6 pre-increment and 0-3 post-decrement.";
   }
   if (labelEquals(label, "JPI")) {
     return "Planned indirect jump using an address held in a register.";

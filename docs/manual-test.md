@@ -121,10 +121,13 @@ The current provisional MK-61-inspired run-mode subset is:
 - `p`, then `v`: `RND`
 - `p`, then `.` / `x` / `y`: `AND` / `OR` / `XOR` on unsigned 32-bit whole numbers
 - `p`, then `z`: `NOT` on an unsigned 32-bit whole number
-- `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `RCL` register `0`-`f`
-- `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `STO` register `0`-`f`
-- `p`, then `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `RCLI` through a pointer register
-- `p`, then `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `STOI` through a pointer register
+- `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `MX` register `0`-`f`
+- `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `XM` register `0`-`f`
+- `p`, then `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `MXI`, indirect memory-to-X through a pointer register
+- `p`, then `r`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `XMI`, indirect X-to-memory through a pointer register
+- `o`: run or stop the stored program at the current run address
+- `n`: reset the program run address to `00`
+- `t`: execute one stored program step from the current run address (`SST`)
 - `e`: open the settings screen
 - while the settings screen is open:
   - `a` / `b`: select the previous / next setting
@@ -378,6 +381,6 @@ This verifies the recent keypad timing fix.
 - The active runtime subset now uses the bottom six rows of the matrix for calculator keys and begins to follow the planned MK-61 prefix model with `k` = `F` and `p` = `K`.
 - The `a` and `b` keys now control backlight brighter/dimmer again, `e` toggles the on-device help mode, and `c` is currently free for future extension work. While help mode is active, key presses show descriptions instead of performing their normal actions.
 - The currently wired `F`-layer now includes trig, inverse trig, powers, exponentials, logarithms, `LAST X`, and the earlier `R↓`, `sqrt`, `1/x`, and `pi` functions.
-- The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, `sign`, the hour/minute conversion functions, `RND`, and the first indirect-register commands `RCLI` and `STOI`.
+- The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, `sign`, the hour/minute conversion functions, `RND`, and the first indirect-register commands `MXI` and `XMI`.
 - The top status bar shows the current calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left, optionally prefixed by `F` or `K` when a one-shot prefix is armed, and the most recent key/state event on the right. When the calculator is in an error state, the status bar shows the error text instead.
 - The stack area now uses four uniform text rows without frames or separator lines.

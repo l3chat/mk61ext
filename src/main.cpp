@@ -746,6 +746,7 @@ void normalizeProgramEditAddress() {
 
 void enterProgramMode() {
   programRunner.stop();
+  programRunner.clearPausedExecution();
   programMode = true;
   programRecorder.reset();
   normalizeProgramEditAddress();
@@ -856,13 +857,13 @@ void armPendingRegisterOperation(PendingRegisterOperation operation) {
 const char *pendingRegisterOperationName() {
   switch (pendingRegisterOperation) {
     case PendingRegisterOperation::DirectRecall:
-      return "RCL";
+      return "MX";
     case PendingRegisterOperation::DirectStore:
-      return "STO";
+      return "XM";
     case PendingRegisterOperation::IndirectRecall:
-      return "RCLI";
+      return "MXI";
     case PendingRegisterOperation::IndirectStore:
-      return "STOI";
+      return "XMI";
     case PendingRegisterOperation::None:
       return "";
   }
@@ -1073,13 +1074,23 @@ void handlePressedKey(char keyPressed) {
     return;
   }
 
-  programRunner.clearError();
-
-  if (handleRegisterOperationKey(keyPressed)) {
+  if (runControlContext && (keyPressed == 't')) {
+    (void)programRunner.singleStep(programVm, calculator);
     return;
   }
 
-  calculator.apply(translateKeyToCalculatorAction(keyPressed));
+  programRunner.clearError();
+
+  if (handleRegisterOperationKey(keyPressed)) {
+    programRunner.clearPausedExecution();
+    return;
+  }
+
+  const CalculatorAction action = translateKeyToCalculatorAction(keyPressed);
+  if (action != CalculatorAction::None) {
+    programRunner.clearPausedExecution();
+  }
+  calculator.apply(action);
 }
 
 const char *keyStateName(KeyState state) {

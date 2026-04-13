@@ -251,6 +251,7 @@ void ProgramRunner::reset() {
   callDepth_ = 0;
   runAddress_ = 0;
   running_ = false;
+  pausedExecution_ = false;
   error_ = ProgramRunnerError::None;
 }
 
@@ -269,28 +270,53 @@ bool ProgramRunner::start(const ProgramVm &vm) {
 
   error_ = ProgramRunnerError::None;
   running_ = true;
+  pausedExecution_ = false;
   return true;
 }
 
 bool ProgramRunner::start(const ProgramVm &vm, RpnCalculator &calculator) {
-  calculator.commitEntry();
-  if (calculator.hasError()) {
-    fail(ProgramRunnerError::CalculatorError);
-    return false;
+  if (!pausedExecution_) {
+    calculator.commitEntry();
+    if (calculator.hasError()) {
+      fail(ProgramRunnerError::CalculatorError);
+      return false;
+    }
   }
 
   return start(vm);
 }
 
 void ProgramRunner::stop() {
-  running_ = false;
+  if (running_) {
+    running_ = false;
+    pausedExecution_ = true;
+  }
 }
 
 void ProgramRunner::resetRunAddress() {
   callDepth_ = 0;
   runAddress_ = 0;
   running_ = false;
+  pausedExecution_ = false;
   error_ = ProgramRunnerError::None;
+}
+
+void ProgramRunner::clearPausedExecution() {
+  pausedExecution_ = false;
+}
+
+bool ProgramRunner::singleStep(const ProgramVm &vm, RpnCalculator &calculator) {
+  if (!start(vm, calculator)) {
+    return false;
+  }
+
+  const bool result = step(vm, calculator);
+  if (running_) {
+    running_ = false;
+    pausedExecution_ = true;
+  }
+
+  return result;
 }
 
 bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
@@ -301,6 +327,7 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
   const uint16_t programLength = vm.programLength();
   if (runAddress_ == programLength) {
     running_ = false;
+    pausedExecution_ = false;
     callDepth_ = 0;
     return true;
   }
@@ -349,11 +376,13 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
       case 0x50:
         runAddress_ = nextAddress;
         running_ = false;
+        pausedExecution_ = false;
         return true;
       case 0x52: {
         if (callDepth_ == 0) {
           runAddress_ = nextAddress;
           running_ = false;
+          pausedExecution_ = false;
           return true;
         }
 
@@ -585,6 +614,7 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
 
 void ProgramRunner::fail(ProgramRunnerError error) {
   running_ = false;
+  pausedExecution_ = false;
   error_ = error;
 }
 

@@ -11,8 +11,8 @@ if [[ $# -eq 0 ]]; then
     read -r -a TRACE_ARGS <<< "${TRACE_SEQ}"
   else
     echo "Usage: bash scripts/trace_sequence.sh <token> [<token> ...]" >&2
-    echo "Example: bash scripts/trace_sequence.sh 5 STO 1 3 ENTER 4 '*' RCL 1" >&2
-    echo "Or: TRACE_SEQ=\"5 STO 1 3 ENTER 4 * RCL 1\" pio run -t trace" >&2
+    echo "Example: bash scripts/trace_sequence.sh 5 XM 1 3 ENTER 4 '*' MX 1" >&2
+    echo "Or: TRACE_SEQ=\"5 XM 1 3 ENTER 4 * MX 1\" pio run -t trace" >&2
     exit 1
   fi
 else

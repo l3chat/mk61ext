@@ -89,7 +89,7 @@ Examples:
 ```text
 00> 07        7
 01: 1C        SIN
-02: 41        RCL 1
+02: 41        MX 1
 03: 51 20     GTO 20
 ```
 
@@ -119,9 +119,9 @@ Examples of front-panel input versus stored meaning:
 | --- | --- |
 | `7` | digit-7 step |
 | `k` then `7` | `sin` step |
-| `q` then `1` | `RCL 1` step |
-| `r` then `x` | `STO b` step |
-| `p` then `q` then `y` | `RCLI c` step |
+| `q` then `1` | `MX 1` step |
+| `r` then `x` | `XM b` step |
+| `p` then `q` then `y` | `MXI c` step |
 | `o` in program mode | halt step |
 
 The key point is that the user still types keys, but the machine stores resolved program steps rather than temporary prefix keystrokes.
@@ -181,8 +181,8 @@ Because direct and indirect register families fit in one byte, the recorder can 
 Example direction:
 
 ```text
-3A> 4_        RCL _
-3A> 4C        RCL C
+3A> 4_        MX _
+3A> 4C        MX C
 ```
 
 The first line is a pending entry after pressing `q`.
@@ -191,7 +191,7 @@ The second line is the committed result after pressing `y`.
 
 ## Address Operand Entry
 
-Direct-address commands such as `GTO`, `GSB`, direct conditionals, and `DSNZn` need one full address byte.
+Direct-address commands such as `GTO`, `GSB`, direct conditionals, and `Ln` need one full address byte.
 
 Recommended v1 input model:
 
@@ -294,10 +294,10 @@ These need an explicit register operand.
 
 Examples:
 
-- `RCL n`
-- `STO n`
-- `RCLI n`
-- `STOI n`
+- `MX n`
+- `XM n`
+- `MXI n`
+- `XMI n`
 
 The user records them by pressing the command key and then the register key, but the stored step should remember the resolved register index.
 
@@ -334,13 +334,13 @@ Examples:
 - `JP X=0 addr`
 - `JP X>=0 addr`
 - `JP X<>0 addr`
-- `DSNZn addr`
+- `Ln addr`
 
 Again, the user enters these through keys, but the VM executes them as resolved conditional program steps.
 
 These are also likely 2-byte commands.
 
-For `DSNZ`, the register selector may be encodable in the opcode byte while the branch target stays in the second byte.
+For `Ln`, the register selector may be encodable in the opcode byte while the branch target stays in the second byte.
 
 ## Recommended Opcode Map
 
@@ -361,9 +361,9 @@ In practice, "close to the original" should mean:
 | `00`-`0E` | digits, decimal, sign, exponent, clear, enter | keep close to original |
 | `0F`-`2F` | arithmetic, stack, `F`-layer scientific ops | keep close to original where practical |
 | `30`-`3F` | `K`-layer utilities, time, boolean, random | keep close to original where practical |
-| `40`-`4F` | direct `RCL` family across registers `0-F` | extend family to full 16-register set |
-| `50`-`5F` | halt / return / direct jump / direct conditional / `DSNZ` / invalid slots | match original neighborhood |
-| `60`-`6F` | direct `STO` family across registers `0-F` | extend family to full 16-register set |
+| `40`-`4F` | direct `MX` family across registers `0-F` | extend family to full 16-register set |
+| `50`-`5F` | halt / return / direct jump / direct conditional / `L0`-`L3` / invalid slots | match original neighborhood |
+| `60`-`6F` | direct `XM` family across registers `0-F` | extend family to full 16-register set |
 | `70`-`7F` | indirect/nonzero-jump family across registers `0-F` | extend selector space to full 16-register set |
 | `80`-`8F` | indirect unconditional jump family across registers `0-F` | extend selector space to full 16-register set |
 | `90`-`9F` | indirect/nonnegative-jump family across registers `0-F` | extend selector space to full 16-register set |
@@ -459,70 +459,70 @@ These should stay especially close to the original because the fit is excellent 
 
 | Opcode | Proposed meaning |
 | --- | --- |
-| `40` | `RCL 0` |
-| `41` | `RCL 1` |
-| `42` | `RCL 2` |
-| `43` | `RCL 3` |
-| `44` | `RCL 4` |
-| `45` | `RCL 5` |
-| `46` | `RCL 6` |
-| `47` | `RCL 7` |
-| `48` | `RCL 8` |
-| `49` | `RCL 9` |
-| `4A` | `RCL A` |
-| `4B` | `RCL B` |
-| `4C` | `RCL C` |
-| `4D` | `RCL D` |
-| `4E` | `RCL E` |
-| `4F` | `RCL F` |
-| `60` | `STO 0` |
-| `61` | `STO 1` |
-| `62` | `STO 2` |
-| `63` | `STO 3` |
-| `64` | `STO 4` |
-| `65` | `STO 5` |
-| `66` | `STO 6` |
-| `67` | `STO 7` |
-| `68` | `STO 8` |
-| `69` | `STO 9` |
-| `6A` | `STO A` |
-| `6B` | `STO B` |
-| `6C` | `STO C` |
-| `6D` | `STO D` |
-| `6E` | `STO E` |
-| `6F` | `STO F` |
-| `B0` | `STOI 0` |
-| `B1` | `STOI 1` |
-| `B2` | `STOI 2` |
-| `B3` | `STOI 3` |
-| `B4` | `STOI 4` |
-| `B5` | `STOI 5` |
-| `B6` | `STOI 6` |
-| `B7` | `STOI 7` |
-| `B8` | `STOI 8` |
-| `B9` | `STOI 9` |
-| `BA` | `STOI A` |
-| `BB` | `STOI B` |
-| `BC` | `STOI C` |
-| `BD` | `STOI D` |
-| `BE` | `STOI E` |
-| `BF` | `STOI F` |
-| `D0` | `RCLI 0` |
-| `D1` | `RCLI 1` |
-| `D2` | `RCLI 2` |
-| `D3` | `RCLI 3` |
-| `D4` | `RCLI 4` |
-| `D5` | `RCLI 5` |
-| `D6` | `RCLI 6` |
-| `D7` | `RCLI 7` |
-| `D8` | `RCLI 8` |
-| `D9` | `RCLI 9` |
-| `DA` | `RCLI A` |
-| `DB` | `RCLI B` |
-| `DC` | `RCLI C` |
-| `DD` | `RCLI D` |
-| `DE` | `RCLI E` |
-| `DF` | `RCLI F` |
+| `40` | `MX 0` |
+| `41` | `MX 1` |
+| `42` | `MX 2` |
+| `43` | `MX 3` |
+| `44` | `MX 4` |
+| `45` | `MX 5` |
+| `46` | `MX 6` |
+| `47` | `MX 7` |
+| `48` | `MX 8` |
+| `49` | `MX 9` |
+| `4A` | `MX A` |
+| `4B` | `MX B` |
+| `4C` | `MX C` |
+| `4D` | `MX D` |
+| `4E` | `MX E` |
+| `4F` | `MX F` |
+| `60` | `XM 0` |
+| `61` | `XM 1` |
+| `62` | `XM 2` |
+| `63` | `XM 3` |
+| `64` | `XM 4` |
+| `65` | `XM 5` |
+| `66` | `XM 6` |
+| `67` | `XM 7` |
+| `68` | `XM 8` |
+| `69` | `XM 9` |
+| `6A` | `XM A` |
+| `6B` | `XM B` |
+| `6C` | `XM C` |
+| `6D` | `XM D` |
+| `6E` | `XM E` |
+| `6F` | `XM F` |
+| `B0` | `XMI 0` |
+| `B1` | `XMI 1` |
+| `B2` | `XMI 2` |
+| `B3` | `XMI 3` |
+| `B4` | `XMI 4` |
+| `B5` | `XMI 5` |
+| `B6` | `XMI 6` |
+| `B7` | `XMI 7` |
+| `B8` | `XMI 8` |
+| `B9` | `XMI 9` |
+| `BA` | `XMI A` |
+| `BB` | `XMI B` |
+| `BC` | `XMI C` |
+| `BD` | `XMI D` |
+| `BE` | `XMI E` |
+| `BF` | `XMI F` |
+| `D0` | `MXI 0` |
+| `D1` | `MXI 1` |
+| `D2` | `MXI 2` |
+| `D3` | `MXI 3` |
+| `D4` | `MXI 4` |
+| `D5` | `MXI 5` |
+| `D6` | `MXI 6` |
+| `D7` | `MXI 7` |
+| `D8` | `MXI 8` |
+| `D9` | `MXI 9` |
+| `DA` | `MXI A` |
+| `DB` | `MXI B` |
+| `DC` | `MXI C` |
+| `DD` | `MXI D` |
+| `DE` | `MXI E` |
+| `DF` | `MXI F` |
 
 That gives direct and indirect register operations a compact 1-byte representation, with the high nibble selecting the family and the low nibble carrying the register index.
 
@@ -540,12 +540,12 @@ This should remain intentionally recognizable to anyone familiar with MK-61 list
 | `55` | `INVALID` | 1 byte |
 | `56` | `INVALID` | 1 byte |
 | `57 aa` | `JP X<>0 aa` | 2 bytes |
-| `58 aa` | `DSNZ2 aa` | 2 bytes |
+| `58 aa` | `L2 aa` | 2 bytes |
 | `59 aa` | `JP X>=0 aa` | 2 bytes |
-| `5A aa` | `DSNZ3 aa` | 2 bytes |
-| `5B aa` | `DSNZ1 aa` | 2 bytes |
+| `5A aa` | `L3 aa` | 2 bytes |
+| `5B aa` | `L1 aa` | 2 bytes |
 | `5C aa` | `JP X<0 aa` | 2 bytes |
-| `5D aa` | `DSNZ0 aa` | 2 bytes |
+| `5D aa` | `L0 aa` | 2 bytes |
 | `5E aa` | `JP X=0 aa` | 2 bytes |
 | `5F` | `INVALID` | 1 byte |
 
@@ -728,7 +728,7 @@ Example direction:
 01: ENTER
 02: 2
 03: *
-04: RCL 1
+04: MX 1
 05: GTO 12
 07: HALT
 ```
@@ -744,7 +744,7 @@ For debugging or low-level inspection, the listing can also optionally include r
 01: 0E      ENTER
 02: 02      2
 03: 12      *
-04: 41      RCL 1
+04: 41      MX 1
 05: 51 12   GTO 12
 07: 50      HALT
 ```

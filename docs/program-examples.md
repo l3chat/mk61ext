@@ -6,7 +6,7 @@ These small programs are meant to smoke-test the current programmable-calculator
 - decoded listing display,
 - direct and indirect register access,
 - direct and indirect control flow,
-- `DSNZ`,
+- `L0`-`L3` loop control,
 - `GSB` / `RETURN`,
 - and ordinary calculator arithmetic while a stored program is running.
 
@@ -36,9 +36,9 @@ This version handles `0! = 1` and works for whole numbers `n >= 0`.
 What it exercises:
 
 - direct conditional branch
-- `DSNZ0`
+- `L0`
 - `GTO`
-- direct `STO` / `RCL`
+- direct `XM` / `MX`
 - multiplication
 
 Setup before `RUN`:
@@ -52,15 +52,15 @@ Expected result:
 | Addr | Keys | Bytes | Meaning |
 | --- | --- | --- | --- |
 | `00` | `k m 0 v` | `5E 0E` | `JP X=0 0E` |
-| `02` | `r 0` | `60` | `STO 0` |
-| `03` | `r 1` | `61` | `STO 1` |
-| `04` | `k q 0 8` | `5D 08` | `DSNZ0 08` |
-| `06` | `q 1` | `41` | `RCL 1` |
+| `02` | `r 0` | `60` | `XM 0` |
+| `03` | `r 1` | `61` | `XM 1` |
+| `04` | `k q 0 8` | `5D 08` | `L0 08` |
+| `06` | `q 1` | `41` | `MX 1` |
 | `07` | `o` | `50` | `HALT` |
-| `08` | `q 1` | `41` | `RCL 1` |
-| `09` | `q 0` | `40` | `RCL 0` |
+| `08` | `q 1` | `41` | `MX 1` |
+| `09` | `q 0` | `40` | `MX 0` |
 | `0A` | `*` | `12` | `*` |
-| `0B` | `r 1` | `61` | `STO 1` |
+| `0B` | `r 1` | `61` | `XM 1` |
 | `0C` | `s 0 4` | `51 04` | `GTO 04` |
 | `0E` | `1` | `01` | `1` |
 | `0F` | `o` | `50` | `HALT` |
@@ -78,7 +78,7 @@ This sums the integers from `1` through `n`. It returns `0` when `n = 0`.
 What it exercises:
 
 - direct conditional branch
-- `DSNZ0`
+- `L0`
 - addition
 - direct register storage
 
@@ -93,15 +93,15 @@ Expected result:
 | Addr | Keys | Bytes | Meaning |
 | --- | --- | --- | --- |
 | `00` | `k m 0 y` | `5E 0C` | `JP X=0 0C` |
-| `02` | `r 0` | `60` | `STO 0` |
+| `02` | `r 0` | `60` | `XM 0` |
 | `03` | `0` | `00` | `0` |
-| `04` | `r 1` | `61` | `STO 1` |
-| `05` | `q 1` | `41` | `RCL 1` |
-| `06` | `q 0` | `40` | `RCL 0` |
+| `04` | `r 1` | `61` | `XM 1` |
+| `05` | `q 1` | `41` | `MX 1` |
+| `06` | `q 0` | `40` | `MX 0` |
 | `07` | `+` | `10` | `+` |
-| `08` | `r 1` | `61` | `STO 1` |
-| `09` | `k q 0 5` | `5D 05` | `DSNZ0 05` |
-| `0B` | `q 1` | `41` | `RCL 1` |
+| `08` | `r 1` | `61` | `XM 1` |
+| `09` | `k q 0 5` | `5D 05` | `L0 05` |
+| `0B` | `q 1` | `41` | `MX 1` |
 | `0C` | `o` | `50` | `HALT` |
 
 Quick checks:

@@ -21,7 +21,7 @@ The `a`-`j` extension block is still the long-term mk61ext extension area, but t
 
 That distinction matters because several labels are faithful to MK-61 shorthand but are not especially readable on first contact:
 
-- `JP`, `JPI`, `DSNZ`, `RCLI`, `STOI`, and `GSBI` are compact programming mnemonics, but they hide a lot of behavior.
+- `JP`, `JPI`, `L0`-`L3`, `MXI`, `XMI`, and `GSBI` are compact programming mnemonics, but they hide a lot of behavior.
 - `H->H.M`, `H.M->H`, `H->H.M.S`, and `H.M.S->H` are technically descriptive, but they are visually dense.
 - `RUN`, `PRG`, and `CF` are probably too terse for final front-panel legends unless the surrounding mode model is very clear.
 - The trigonometric labels `tg`, `asin`, `acos`, and `atan` are historically grounded, but we may still want a more modern labeling pass before printing or engraving anything.
@@ -64,10 +64,10 @@ This 6x5 block is the planned MK-61-style keyboard:
 | Raw key | Primary | What it does | `F`-shifted | What it does | `K`-shifted | What it does |
 | --- | --- | --- | --- | --- | --- | --- |
 | `p` | `K` | Prefix key that selects the `K` layer for the next keypress. | `—` | No second-level assignment planned here. | `—` | No second-level assignment planned here. |
-| `q` | `RCL` | Recall a register value into `X` while lifting the stack. Use `0`-`9`, or `. x y z v u` for registers `a`-`f`. | *`DSNZ0`* | Decrement register `0` and branch if it stays non-zero. | `RCLI` | Indirect register recall through a pointer register while lifting the stack. The pointer value uses its whole-number part wrapped across registers `0`-`f`; pointer registers `4`-`6` pre-increment and `0`-`3` post-decrement. |
-| `r` | `STO` | Store `X` into a register. Use `0`-`9`, or `. x y z v u` for registers `a`-`f`. | *`DSNZ1`* | Decrement register `1` and branch if it stays non-zero. | `STOI` | Indirect register store through a pointer register. The pointer value uses its whole-number part wrapped across registers `0`-`f`; pointer registers `4`-`6` pre-increment and `0`-`3` post-decrement. |
-| `s` | *`GTO`* | Jump to the following program address. | *`DSNZ2`* | Decrement register `2` and branch if it stays non-zero. | *`JPI`* | Indirect jump using an address held in a register. |
-| `t` | *`GSB/SST`* | In calculator mode, single-step a program; in program mode, call a subroutine. | *`DSNZ3`* | Decrement register `3` and branch if it stays non-zero. | *`GSBI`* | Indirect subroutine call using an address held in a register. |
+| `q` | `MX` | Recall a register value into `X` while lifting the stack. Use `0`-`9`, or `. x y z v u` for registers `a`-`f`. | *`L0`* | Decrement register `0` and branch if it stays non-zero. | `MXI` | Indirect memory-to-X recall through a pointer register while lifting the stack. The pointer value uses its whole-number part wrapped across registers `0`-`f`; pointer registers `4`-`6` pre-increment and `0`-`3` post-decrement. |
+| `r` | `XM` | Store `X` into a register. Use `0`-`9`, or `. x y z v u` for registers `a`-`f`. | *`L1`* | Decrement register `1` and branch if it stays non-zero. | `XMI` | Indirect X-to-memory store through a pointer register. The pointer value uses its whole-number part wrapped across registers `0`-`f`; pointer registers `4`-`6` pre-increment and `0`-`3` post-decrement. |
+| `s` | *`GTO`* | Jump to the following program address. | *`L2`* | Decrement register `2` and branch if it stays non-zero. | *`JPI`* | Indirect jump using an address held in a register. |
+| `t` | `GSB/SST` | In calculator mode, single-step a program; in program mode, call a subroutine. | *`L3`* | Decrement register `3` and branch if it stays non-zero. | *`GSBI`* | Indirect subroutine call using an address held in a register. |
 
 #### Row `7`-`/`
 
@@ -120,8 +120,8 @@ This 6x5 block is the planned MK-61-style keyboard:
 
 These are the places where I expect the labels to need another pass before they become final legends:
 
-- `JP`, `JPI`, and `DSNZ` are historically accurate but opaque unless the user already thinks in program-control mnemonics.
-- `RCLI`, `STOI`, and `GSBI` are accurate shorthand for indirect addressing, but they are poor first-contact labels.
+- `JP`, `JPI`, and `L0`-`L3` are compact but opaque unless the user already thinks in program-control mnemonics.
+- `MXI`, `XMI`, and `GSBI` are accurate shorthand for indirect addressing, but they are poor first-contact labels.
 - `H->H.M`, `H.M->H`, `H->H.M.S`, and `H.M.S->H` describe the conversions, but the punctuation-heavy format will be hard to read on a cramped key cap.
 - `RUN`, `PRG`, and `CF` probably want more user-facing wording once the mode model is settled.
 - `Rdown` is descriptive, but a future legend may want to align visually with the rest of the stack-operation terminology.

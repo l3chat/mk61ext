@@ -643,9 +643,17 @@ void testProgramVmOpcodeInfo() {
   expectEqual(digitInfo.width, 1.0, "opcode 07 should be one byte");
   expectString(digitInfo.mnemonic, "7", "opcode 07 should decode as digit 7");
 
-  ProgramOpcodeInfo rclFInfo = describeProgramOpcode(0x4F);
-  expectTrue(rclFInfo.valid, "opcode 4F should be valid after enabling register F");
-  expectString(rclFInfo.mnemonic, "RCL", "opcode 4F should be in the RCL family");
+  ProgramOpcodeInfo mxFInfo = describeProgramOpcode(0x4F);
+  expectTrue(mxFInfo.valid, "opcode 4F should be valid after enabling register F");
+  expectString(mxFInfo.mnemonic, "MX", "opcode 4F should be in the MX family");
+
+  ProgramOpcodeInfo xmiFInfo = describeProgramOpcode(0xBF);
+  expectTrue(xmiFInfo.valid, "opcode BF should be valid after enabling indirect register F");
+  expectString(xmiFInfo.mnemonic, "XMI", "opcode BF should be in the XMI family");
+
+  ProgramOpcodeInfo mxiFInfo = describeProgramOpcode(0xDF);
+  expectTrue(mxiFInfo.valid, "opcode DF should be valid after enabling indirect register F");
+  expectString(mxiFInfo.mnemonic, "MXI", "opcode DF should be in the MXI family");
 
   ProgramOpcodeInfo gtoInfo = describeProgramOpcode(0x51);
   expectTrue(gtoInfo.valid, "opcode 51 should be valid");
@@ -679,9 +687,23 @@ void testProgramVmFormattingAndListing() {
   expectTrue(vm.formatStep(gtoStep, label, sizeof(label)), "formatStep should succeed for valid steps");
   expectString(label, "GTO 12", "formatStep should render two-byte control operations with operands");
 
-  ProgramVm::DecodedStep rclFStep = vm.decodeAt(4);
-  expectTrue(vm.formatStep(rclFStep, label, sizeof(label)), "formatStep should succeed for register steps");
-  expectString(label, "RCL F", "formatStep should expose register-F opcodes");
+  ProgramVm::DecodedStep mxFStep = vm.decodeAt(4);
+  expectTrue(vm.formatStep(mxFStep, label, sizeof(label)), "formatStep should succeed for register steps");
+  expectString(label, "MX F", "formatStep should expose register-F opcodes");
+
+  ProgramVm indirectVm;
+  const uint8_t indirectProgram[] = {0xBF, 0xDF};
+  expectTrue(indirectVm.loadProgram(indirectProgram, sizeof(indirectProgram)),
+             "ProgramVm should load indirect register-family opcodes");
+  ProgramVm::DecodedStep xmiFStep = indirectVm.decodeAt(0);
+  expectTrue(indirectVm.formatStep(xmiFStep, label, sizeof(label)),
+             "formatStep should succeed for indirect store steps");
+  expectString(label, "XMI F", "formatStep should expose indirect X-to-memory opcodes");
+
+  ProgramVm::DecodedStep mxiFStep = indirectVm.decodeAt(1);
+  expectTrue(indirectVm.formatStep(mxiFStep, label, sizeof(label)),
+             "formatStep should succeed for indirect recall steps");
+  expectString(label, "MXI F", "formatStep should expose indirect memory-to-X opcodes");
 
   char line[64];
   expectTrue(vm.formatListingLine(5, line, sizeof(line)),
@@ -823,16 +845,16 @@ void testProgramRecorderRegisterAndAddressOperands() {
   uint8_t editAddress = 0;
 
   expectTrue(recorder.handleKey(vm, editAddress, 'q'),
-             "RCL should arm register-operand entry");
-  expectTrue(recorder.hasPendingInput(), "RCL should create pending recorder state");
+             "MX should arm register-operand entry");
+  expectTrue(recorder.hasPendingInput(), "MX should create pending recorder state");
   expectTrue(recorder.handleKey(vm, editAddress, 'u'),
-             "RCL followed by u should commit RCL F");
+             "MX followed by u should commit MX F");
   expectFalse(recorder.hasPendingInput(), "successful register commit should clear pending state");
 
   expectTrue(recorder.handleKey(vm, editAddress, 'r'),
-             "STO should arm register-operand entry");
+             "XM should arm register-operand entry");
   expectTrue(recorder.handleKey(vm, editAddress, 'y'),
-             "STO followed by y should commit STO C");
+             "XM followed by y should commit XM C");
 
   expectTrue(recorder.handleKey(vm, editAddress, 's'),
              "GTO should arm address entry");
@@ -868,20 +890,20 @@ void testProgramRecorderShiftedFamilies() {
              "F 7 should record SIN");
 
   expectTrue(recorder.handleKey(vm, editAddress, 'k'),
-             "F prefix should re-arm for DSNZ recording");
+             "F prefix should re-arm for L recording");
   expectTrue(recorder.handleKey(vm, editAddress, 'q'),
-             "F q should arm DSNZ0 address entry");
+             "F q should arm L0 address entry");
   expectTrue(recorder.handleKey(vm, editAddress, '2'),
-             "DSNZ0 high nibble should accept 2");
+             "L0 high nibble should accept 2");
   expectTrue(recorder.handleKey(vm, editAddress, '0'),
-             "DSNZ0 low nibble should accept 0");
+             "L0 low nibble should accept 0");
 
   expectTrue(recorder.handleKey(vm, editAddress, 'p'),
              "K prefix should arm shifted recording");
   expectTrue(recorder.handleKey(vm, editAddress, 'q'),
-             "K q should arm RCLI register entry");
+             "K q should arm MXI register entry");
   expectTrue(recorder.handleKey(vm, editAddress, 'u'),
-             "K q u should commit RCLI F");
+             "K q u should commit MXI F");
 
   expectTrue(recorder.handleKey(vm, editAddress, 'p'),
              "K prefix should arm indirect jump recording");
@@ -922,7 +944,7 @@ void testProgramRecorderErrors() {
                       "unsupported key should report InvalidKey");
 
   expectTrue(recorder.handleKey(vm, editAddress, 'q'),
-             "RCL should arm register-operand state before invalid operand test");
+             "MX should arm register-operand state before invalid operand test");
   expectFalse(recorder.handleKey(vm, editAddress, 'a'),
               "invalid register designator should be rejected");
   expectRecorderError(recorder, ProgramRecorderError::InvalidOperand,
@@ -1028,6 +1050,96 @@ void testProgramRunnerLinearExecution() {
   expectFalse(runner.hasError(), "linear program should finish without runner errors");
   expectEqualByte(runner.runAddress(), 5, "HALT should leave run address after the halt step");
   expectEqual(calculator.stack().x, 3.0, "1 ENTER 2 + should leave 3 in X");
+}
+
+void testProgramRunnerSingleStepExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x01, 0x02, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading single-step digit program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.singleStep(vm, calculator), "SST should execute the first step");
+  expectFalse(runner.isRunning(), "SST should pause after one step");
+  expectEqualByte(runner.runAddress(), 1, "SST should advance to the second step");
+  expectTrue(calculator.isEntering(), "SST of a digit should leave numeric entry active");
+  expectEqual(calculator.stack().x, 1.0, "first SST should enter digit 1");
+
+  expectTrue(runner.singleStep(vm, calculator), "second SST should execute the second digit");
+  expectFalse(runner.isRunning(), "second SST should pause after one step");
+  expectEqualByte(runner.runAddress(), 2, "second SST should advance to HALT");
+  expectTrue(calculator.isEntering(), "second SST should keep numeric entry active");
+  expectEqual(calculator.stack().x, 12.0,
+              "second SST should continue the program's active numeric entry");
+
+  expectTrue(runner.singleStep(vm, calculator), "third SST should execute HALT");
+  expectFalse(runner.isRunning(), "SST of HALT should leave the runner stopped");
+  expectEqualByte(runner.runAddress(), 3, "HALT should leave the run address after the halt step");
+  expectFalse(runner.hasError(), "SST sequence should finish without runner errors");
+}
+
+void testProgramRunnerResumeAfterSingleStepKeepsProgramEntry() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x01, 0x02, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading resume-after-SST program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.singleStep(vm, calculator), "SST should execute the first digit before resume");
+  expectTrue(runner.start(vm, calculator), "R/S should resume after SST");
+  runProgramUntilStop(runner, vm, calculator, 8, "resumed program should halt");
+
+  expectFalse(runner.hasError(), "resumed program should finish without runner errors");
+  expectEqual(calculator.stack().x, 12.0,
+              "R/S after SST should continue the program's active numeric entry");
+}
+
+void testProgramRunnerSingleStepCommitsInitialEntry() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x01, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading initial-entry SST program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+  enterText(calculator, "2");
+
+  expectTrue(runner.singleStep(vm, calculator), "SST should start from an active user entry");
+  expectFalse(runner.isRunning(), "SST should pause after executing one step");
+  expectEqual(calculator.stack().x, 1.0, "SST should enter the program digit in X");
+  expectEqual(calculator.stack().y, 0.0,
+              "SST should commit the user's pending entry instead of appending the program digit to it");
+}
+
+void testProgramRunnerSingleStepSubroutineExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x53, 0x03, 0x50, 0x01, 0x52};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading single-step subroutine program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.singleStep(vm, calculator), "SST should execute GSB");
+  expectFalse(runner.isRunning(), "SST should pause after GSB");
+  expectEqualByte(runner.runAddress(), 3, "GSB under SST should move to the subroutine target");
+
+  expectTrue(runner.singleStep(vm, calculator), "SST should execute the subroutine body");
+  expectFalse(runner.isRunning(), "SST should pause inside the subroutine");
+  expectEqualByte(runner.runAddress(), 4, "SST should advance to RETURN inside the subroutine");
+  expectEqual(calculator.stack().x, 1.0, "subroutine body should enter digit 1");
+
+  expectTrue(runner.singleStep(vm, calculator), "SST should execute RETURN");
+  expectFalse(runner.isRunning(), "SST should pause after RETURN");
+  expectEqualByte(runner.runAddress(), 2, "RETURN under SST should restore the caller address");
+
+  expectTrue(runner.singleStep(vm, calculator), "SST should execute the caller HALT");
+  expectFalse(runner.hasError(), "single-step subroutine path should not set runner errors");
+  expectEqualByte(runner.runAddress(), 3, "HALT should leave the run address after the halt step");
 }
 
 void testProgramRunnerDirectJumpExecution() {
@@ -1264,8 +1376,8 @@ void testProgramRunnerRegisterExecution() {
 
   const CalculatorStack stack = calculator.stack();
   expectFalse(runner.hasError(), "register execution should not set runner error");
-  expectEqual(stack.x, 5.0, "RCL 1 should recall 5 into X");
-  expectEqual(stack.y, 12.0, "RCL 1 should lift the previous result into Y");
+  expectEqual(stack.x, 5.0, "MX 1 should recall 5 into X");
+  expectEqual(stack.y, 12.0, "MX 1 should lift the previous result into Y");
 }
 
 void testProgramRunnerIndirectSubroutineExecution() {
@@ -1293,36 +1405,36 @@ void testProgramRunnerDsnzExecution() {
     ProgramVm vm;
     const uint8_t program[] = {0x5D, 0x04, 0x09, 0x50, 0x01, 0x50};
     expectTrue(vm.loadProgram(program, sizeof(program)),
-               "loading DSNZ0 true-path program should succeed");
+               "loading L0 true-path program should succeed");
 
     ProgramRunner runner;
     RpnCalculator calculator;
 
-    expectTrue(calculator.writeRegister(0, 2.0), "writing register 0 before DSNZ0 should succeed");
-    expectTrue(runner.start(vm), "runner should start for DSNZ0 true-path");
-    runProgramUntilStop(runner, vm, calculator, 16, "DSNZ0 true-path program should halt");
+    expectTrue(calculator.writeRegister(0, 2.0), "writing register 0 before L0 should succeed");
+    expectTrue(runner.start(vm), "runner should start for L0 true-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "L0 true-path program should halt");
 
-    expectFalse(runner.hasError(), "DSNZ0 true-path should not set runner error");
-    expectEqual(calculator.stack().x, 1.0, "DSNZ0 should jump while the decremented counter stays nonzero");
-    expectRegisterValue(calculator, 0, 1.0, "DSNZ0 should decrement register 0 before jumping");
+    expectFalse(runner.hasError(), "L0 true-path should not set runner error");
+    expectEqual(calculator.stack().x, 1.0, "L0 should jump while the decremented counter stays nonzero");
+    expectRegisterValue(calculator, 0, 1.0, "L0 should decrement register 0 before jumping");
   }
 
   {
     ProgramVm vm;
     const uint8_t program[] = {0x5D, 0x01, 0x09, 0x50};
     expectTrue(vm.loadProgram(program, sizeof(program)),
-               "loading DSNZ0 false-path program should succeed");
+               "loading L0 false-path program should succeed");
 
     ProgramRunner runner;
     RpnCalculator calculator;
 
-    expectTrue(calculator.writeRegister(0, 1.0), "writing register 0 before DSNZ0 false-path should succeed");
-    expectTrue(runner.start(vm), "runner should start for DSNZ0 false-path");
-    runProgramUntilStop(runner, vm, calculator, 16, "DSNZ0 false-path program should halt");
+    expectTrue(calculator.writeRegister(0, 1.0), "writing register 0 before L0 false-path should succeed");
+    expectTrue(runner.start(vm), "runner should start for L0 false-path");
+    runProgramUntilStop(runner, vm, calculator, 16, "L0 false-path program should halt");
 
-    expectFalse(runner.hasError(), "DSNZ0 false-path should ignore the invalid untaken target");
-    expectEqual(calculator.stack().x, 9.0, "DSNZ0 should fall through when the decremented counter reaches zero");
-    expectRegisterValue(calculator, 0, 0.0, "DSNZ0 should decrement register 0 to zero on the fall-through path");
+    expectFalse(runner.hasError(), "L0 false-path should ignore the invalid untaken target");
+    expectEqual(calculator.stack().x, 9.0, "L0 should fall through when the decremented counter reaches zero");
+    expectRegisterValue(calculator, 0, 0.0, "L0 should decrement register 0 to zero on the fall-through path");
   }
 
   const struct {
@@ -1338,21 +1450,21 @@ void testProgramRunnerDsnzExecution() {
     ProgramVm vm;
     const uint8_t program[] = {caseData.opcode, 0x04, 0x09, 0x50, 0x01, 0x50};
     expectTrue(vm.loadProgram(program, sizeof(program)),
-               "loading DSNZ register-selection program should succeed");
+               "loading L register-selection program should succeed");
 
     ProgramRunner runner;
     RpnCalculator calculator;
 
     expectTrue(calculator.writeRegister(caseData.index, 2.0),
-               "writing DSNZ register-selection counter should succeed");
-    expectTrue(runner.start(vm), "runner should start for DSNZ register-selection test");
-    runProgramUntilStop(runner, vm, calculator, 16, "DSNZ register-selection program should halt");
+               "writing L register-selection counter should succeed");
+    expectTrue(runner.start(vm), "runner should start for L register-selection test");
+    runProgramUntilStop(runner, vm, calculator, 16, "L register-selection program should halt");
 
-    expectFalse(runner.hasError(), "DSNZ register-selection should not set runner error");
+    expectFalse(runner.hasError(), "L register-selection should not set runner error");
     expectEqual(calculator.stack().x, 1.0,
-                "DSNZ register-selection should jump while the decremented counter stays nonzero");
+                "L register-selection should jump while the decremented counter stays nonzero");
     expectRegisterValue(calculator, caseData.index, 1.0,
-                        "DSNZ register-selection should decrement the expected counter register");
+                        "L register-selection should decrement the expected counter register");
   }
 }
 
@@ -1701,6 +1813,10 @@ int main() {
   testProgramRecorderShiftedFamilies();
   testProgramRecorderErrors();
   testProgramRunnerLinearExecution();
+  testProgramRunnerSingleStepExecution();
+  testProgramRunnerResumeAfterSingleStepKeepsProgramEntry();
+  testProgramRunnerSingleStepCommitsInitialEntry();
+  testProgramRunnerSingleStepSubroutineExecution();
   testProgramRunnerDirectJumpExecution();
   testProgramRunnerDirectConditionalExecution();
   testProgramRunnerIndirectJumpExecution();

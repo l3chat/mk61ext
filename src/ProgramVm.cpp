@@ -110,7 +110,7 @@ ProgramOpcodeInfo describeProgramOpcode(uint8_t opcode) {
 
   if (opcode <= 0x4F) {
     info.valid = true;
-    info.mnemonic = "RCL";
+    info.mnemonic = "MX";
     return info;
   }
 
@@ -146,7 +146,7 @@ ProgramOpcodeInfo describeProgramOpcode(uint8_t opcode) {
       case 0x58:
         info.valid = true;
         info.width = 2;
-        info.mnemonic = "DSNZ2";
+        info.mnemonic = "L2";
         return info;
       case 0x59:
         info.valid = true;
@@ -156,12 +156,12 @@ ProgramOpcodeInfo describeProgramOpcode(uint8_t opcode) {
       case 0x5A:
         info.valid = true;
         info.width = 2;
-        info.mnemonic = "DSNZ3";
+        info.mnemonic = "L3";
         return info;
       case 0x5B:
         info.valid = true;
         info.width = 2;
-        info.mnemonic = "DSNZ1";
+        info.mnemonic = "L1";
         return info;
       case 0x5C:
         info.valid = true;
@@ -171,7 +171,7 @@ ProgramOpcodeInfo describeProgramOpcode(uint8_t opcode) {
       case 0x5D:
         info.valid = true;
         info.width = 2;
-        info.mnemonic = "DSNZ0";
+        info.mnemonic = "L0";
         return info;
       case 0x5E:
         info.valid = true;
@@ -187,7 +187,7 @@ ProgramOpcodeInfo describeProgramOpcode(uint8_t opcode) {
 
   if (opcode <= 0x6F) {
     info.valid = true;
-    info.mnemonic = "STO";
+    info.mnemonic = "XM";
     return info;
   }
 
@@ -217,7 +217,7 @@ ProgramOpcodeInfo describeProgramOpcode(uint8_t opcode) {
 
   if (opcode <= 0xBF) {
     info.valid = true;
-    info.mnemonic = "STOI";
+    info.mnemonic = "XMI";
     return info;
   }
 
@@ -229,7 +229,7 @@ ProgramOpcodeInfo describeProgramOpcode(uint8_t opcode) {
 
   if (opcode <= 0xDF) {
     info.valid = true;
-    info.mnemonic = "RCLI";
+    info.mnemonic = "MXI";
     return info;
   }
 

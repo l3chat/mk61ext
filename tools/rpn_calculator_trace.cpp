@@ -25,13 +25,13 @@ PendingRegisterOperation gPendingRegisterOperation = PendingRegisterOperation::N
 const char *pendingRegisterOperationName() {
   switch (gPendingRegisterOperation) {
     case PendingRegisterOperation::DirectRecall:
-      return "RCL";
+      return "MX";
     case PendingRegisterOperation::DirectStore:
-      return "STO";
+      return "XM";
     case PendingRegisterOperation::IndirectRecall:
-      return "RCLI";
+      return "MXI";
     case PendingRegisterOperation::IndirectStore:
-      return "STOI";
+      return "XMI";
     case PendingRegisterOperation::None:
       return "";
   }
@@ -272,20 +272,20 @@ bool expandAliasToken(const std::string &token, std::vector<char> &rawKeys) {
     rawKeys.push_back('p');
     return true;
   }
-  if (upper == "RCL") {
+  if ((upper == "MX") || (upper == "RCL")) {
     rawKeys.push_back('q');
     return true;
   }
-  if (upper == "STO") {
+  if ((upper == "XM") || (upper == "STO")) {
     rawKeys.push_back('r');
     return true;
   }
-  if (upper == "RCLI") {
+  if ((upper == "MXI") || (upper == "RCLI")) {
     rawKeys.push_back('p');
     rawKeys.push_back('q');
     return true;
   }
-  if (upper == "STOI") {
+  if ((upper == "XMI") || (upper == "STOI")) {
     rawKeys.push_back('p');
     rawKeys.push_back('r');
     return true;
@@ -301,16 +301,18 @@ bool expandAliasToken(const std::string &token, std::vector<char> &rawKeys) {
     return appendRegisterKey(rawKeys, token.back());
   };
 
-  if (expandPrefixedRegisterToken("RCLI", {'p', 'q'})) {
+  if (expandPrefixedRegisterToken("MXI", {'p', 'q'}) ||
+      expandPrefixedRegisterToken("RCLI", {'p', 'q'})) {
     return true;
   }
-  if (expandPrefixedRegisterToken("STOI", {'p', 'r'})) {
+  if (expandPrefixedRegisterToken("XMI", {'p', 'r'}) ||
+      expandPrefixedRegisterToken("STOI", {'p', 'r'})) {
     return true;
   }
-  if (expandPrefixedRegisterToken("RCL", {'q'})) {
+  if (expandPrefixedRegisterToken("MX", {'q'}) || expandPrefixedRegisterToken("RCL", {'q'})) {
     return true;
   }
-  if (expandPrefixedRegisterToken("STO", {'r'})) {
+  if (expandPrefixedRegisterToken("XM", {'r'}) || expandPrefixedRegisterToken("STO", {'r'})) {
     return true;
   }
 
@@ -320,11 +322,11 @@ bool expandAliasToken(const std::string &token, std::vector<char> &rawKeys) {
 void printUsage(const char *argv0) {
   std::cerr << "Usage: " << argv0 << " <token> [<token> ...]\n";
   std::cerr << "Examples:\n";
-  std::cerr << "  " << argv0 << " 5 STO 1 3 ENTER 4 '*' RCL 1\n";
+  std::cerr << "  " << argv0 << " 5 XM 1 3 ENTER 4 '*' MX 1\n";
   std::cerr << "  " << argv0 << " 5 r 1 3 v 4 '*' q 1\n";
-  std::cerr << "  " << argv0 << " 6 6 STO 6 6 STO 7 RCLI 7\n";
-  std::cerr << "Supported aliases: ENTER, EEX, CHS, CX, SWAP, RCL, STO, RCLI, STOI, F, K,\n";
-  std::cerr << "and combined register forms like STO1, RCLA, RCLIE.\n";
+  std::cerr << "  " << argv0 << " 6 6 XM 6 6 XM 7 MXI 7\n";
+  std::cerr << "Supported aliases: ENTER, EEX, CHS, CX, SWAP, MX, XM, MXI, XMI, F, K,\n";
+  std::cerr << "and combined register forms like XM1, MXA, MXIE.\n";
 }
 
 }  // namespace
