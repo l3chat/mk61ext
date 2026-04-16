@@ -313,6 +313,8 @@ bool RpnCalculator::apply(CalculatorAction action) {
       return bitwiseXor();
     case CalculatorAction::BitwiseNot:
       return bitwiseNot();
+    case CalculatorAction::Drop:
+      return drop();
     case CalculatorAction::HourToHourMinute:
       return hourToHourMinute();
     case CalculatorAction::HourMinuteToHour:
@@ -975,6 +977,19 @@ bool RpnCalculator::bitwiseNot() {
   }
 
   stack_[0] = static_cast<CalculatorValue>(~x);
+  stackLiftEnabled_ = true;
+  return true;
+}
+
+bool RpnCalculator::drop() {
+  if (hasError()) {
+    return false;
+  }
+
+  finishEntry();
+  rememberLastX();
+  stack_[0] = stack_[1];
+  dropStack();
   stackLiftEnabled_ = true;
   return true;
 }

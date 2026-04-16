@@ -59,6 +59,7 @@ enum class CalculatorAction : uint8_t {
   BitwiseOr,
   BitwiseXor,
   BitwiseNot,
+  Drop,
   HourToHourMinute,
   HourMinuteToHour,
   HourToHourMinuteSecond,
@@ -150,6 +151,7 @@ private:
   bool bitwiseOr();
   bool bitwiseXor();
   bool bitwiseNot();
+  bool drop();
   bool hourToHourMinute();
   bool hourMinuteToHour();
   bool hourToHourMinuteSecond();

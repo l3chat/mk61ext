@@ -120,6 +120,7 @@ The current provisional MK-61-inspired run-mode subset is:
 - `p`, then `3`: `H->H.M.S`
 - `p`, then `u`: `H.M.S->H`
 - `p`, then `v`: `RND`
+- `p`, then `*`: `DROP` (drop `X`, shift `Y->X`, `Z->Y`, `T->Z`)
 - `p`, then `.` / `x` / `y`: `AND` / `OR` / `XOR` on unsigned 32-bit whole numbers
 - `p`, then `z`: `NOT` on an unsigned 32-bit whole number
 - `q`, then `0`-`9` or `.` / `x` / `y` / `z` / `v` / `u`: `MX` register `0`-`f`
@@ -269,55 +270,57 @@ This verifies the newly implemented scientific and utility operations.
 16. Confirm `X` becomes `9` (`X^Y`, so `3^2`).
 17. Press `k`, then `v`.
 18. Confirm `X` returns to `3` from `LAST X`.
-19. Press `3`, then `x`, then `p`, then `4`.
-20. Confirm `X` becomes `3`.
-21. Press `3`, then `x`, then `p`, then `5`.
-22. Confirm `X` becomes `-1`.
-23. Press `1`, then `2`, then `.`, then `7`, then `5`, then `p`, then `7`.
-24. Confirm `X` becomes `12`.
-25. Press `1`, then `2`, then `.`, then `7`, then `5`, then `p`, then `8`.
-26. Confirm `X` becomes `0.75`.
-27. Press `2`, then `v`, then `5`, then `p`, then `9`.
-28. Confirm `X` becomes `5`.
-29. Press `2`, then `.`, then `5`, then `p`, then `6`.
-30. Confirm `X` becomes `2.3`.
-31. Press `2`, then `.`, then `3`, then `0`, then `3`, then `0`, then `p`, then `+`.
-32. Confirm `X` becomes approximately `2.505`.
-33. Press `2`, then `.`, then `5`, then `0`, then `8`, then `3`, then `3`, then `3`, then `p`, then `3`.
-34. Confirm `X` becomes approximately `2.303`.
-35. Press `2`, then `.`, then `3`, then `0`, then `3`, then `0`, then `p`, then `u`.
-36. Confirm `X` becomes approximately `2.508333`.
-37. Press `p`, then `v`.
-38. Confirm `X` is greater than or equal to `0`.
-39. Confirm `X` is less than `1`.
-40. Press `1`, then `2`, then `v`, then `1`, then `0`, then `p`, then `.`.
-41. Confirm `X` becomes `8`.
-42. Press `1`, then `2`, then `v`, then `1`, then `0`, then `p`, then `x`.
-43. Confirm `X` becomes `14`.
-44. Press `1`, then `2`, then `v`, then `1`, then `0`, then `p`, then `y`.
-45. Confirm `X` becomes `6`.
-46. Press `0`, then `p`, then `z`.
-47. Confirm `X` becomes `4294967295`, showing unsigned 32-bit `NOT`.
-48. Press `2`, then `1`, then `4`, then `7`, then `4`, then `8`, then `3`, then `6`, then `4`, then `8`, then `v`, then `1`, then `p`, then `x`.
-49. Confirm `X` becomes `2147483649`, showing the bitwise path treats values as unsigned instead of signed.
-50. Press `1`, then `x`, then `p`, then `z`.
-51. Confirm the calculator shows `domain error` because negative values are invalid for unsigned bitwise operations.
-52. Press `1`, then `.`, then `5`, then `v`, then `3`, then `p`, then `.`.
-53. Confirm the calculator shows `domain error` because bitwise ops require whole-number inputs.
-54. Press `4`, then `2`, then `9`, then `4`, then `9`, then `6`, then `7`, then `2`, then `9`, then `6`, then `p`, then `z`.
-55. Confirm the calculator shows `domain error` because values above `4294967295` are out of range.
-56. Press `4`, then `2`, then `r`, then `5`.
-57. Confirm `X` stays `42` after storing into register `5`.
-58. Press `q`, then `5`.
-59. Confirm `X` returns to `42` from register `5`.
-60. Confirm `Y` keeps the prior `0`, showing direct recall lifts the stack instead of overwriting it.
-61. Press `8`, then `8`, then `r`, then `v`.
-62. Confirm `X` stays `88` after storing into register `e`.
-63. Press `1`.
-64. Confirm `X` changes to `1`, showing the stored register value is independent from the live stack.
-65. Press `q`, then `v`.
-66. Confirm `X` returns to `88` from register `e`.
-67. Confirm `Y` becomes `1`, showing direct recall pushes the prior `X` value down the stack.
+19. Press `1`, then `v`, then `2`, then `v`, then `3`, then `v`, then `4`, then `p`, then `*`.
+20. Confirm the stack becomes `X=3`, `Y=2`, `Z=1`, and `T` remains `1`.
+21. Press `3`, then `x`, then `p`, then `4`.
+22. Confirm `X` becomes `3`.
+23. Press `3`, then `x`, then `p`, then `5`.
+24. Confirm `X` becomes `-1`.
+25. Press `1`, then `2`, then `.`, then `7`, then `5`, then `p`, then `7`.
+26. Confirm `X` becomes `12`.
+27. Press `1`, then `2`, then `.`, then `7`, then `5`, then `p`, then `8`.
+28. Confirm `X` becomes `0.75`.
+29. Press `2`, then `v`, then `5`, then `p`, then `9`.
+30. Confirm `X` becomes `5`.
+31. Press `2`, then `.`, then `5`, then `p`, then `6`.
+32. Confirm `X` becomes `2.3`.
+33. Press `2`, then `.`, then `3`, then `0`, then `3`, then `0`, then `p`, then `+`.
+34. Confirm `X` becomes approximately `2.505`.
+35. Press `2`, then `.`, then `5`, then `0`, then `8`, then `3`, then `3`, then `3`, then `p`, then `3`.
+36. Confirm `X` becomes approximately `2.303`.
+37. Press `2`, then `.`, then `3`, then `0`, then `3`, then `0`, then `p`, then `u`.
+38. Confirm `X` becomes approximately `2.508333`.
+39. Press `p`, then `v`.
+40. Confirm `X` is greater than or equal to `0`.
+41. Confirm `X` is less than `1`.
+42. Press `1`, then `2`, then `v`, then `1`, then `0`, then `p`, then `.`.
+43. Confirm `X` becomes `8`.
+44. Press `1`, then `2`, then `v`, then `1`, then `0`, then `p`, then `x`.
+45. Confirm `X` becomes `14`.
+46. Press `1`, then `2`, then `v`, then `1`, then `0`, then `p`, then `y`.
+47. Confirm `X` becomes `6`.
+48. Press `0`, then `p`, then `z`.
+49. Confirm `X` becomes `4294967295`, showing unsigned 32-bit `NOT`.
+50. Press `2`, then `1`, then `4`, then `7`, then `4`, then `8`, then `3`, then `6`, then `4`, then `8`, then `v`, then `1`, then `p`, then `x`.
+51. Confirm `X` becomes `2147483649`, showing the bitwise path treats values as unsigned instead of signed.
+52. Press `1`, then `x`, then `p`, then `z`.
+53. Confirm the calculator shows `domain error` because negative values are invalid for unsigned bitwise operations.
+54. Press `1`, then `.`, then `5`, then `v`, then `3`, then `p`, then `.`.
+55. Confirm the calculator shows `domain error` because bitwise ops require whole-number inputs.
+56. Press `4`, then `2`, then `9`, then `4`, then `9`, then `6`, then `7`, then `2`, then `9`, then `6`, then `p`, then `z`.
+57. Confirm the calculator shows `domain error` because values above `4294967295` are out of range.
+58. Press `4`, then `2`, then `r`, then `5`.
+59. Confirm `X` stays `42` after storing into register `5`.
+60. Press `q`, then `5`.
+61. Confirm `X` returns to `42` from register `5`.
+62. Confirm `Y` keeps the prior `0`, showing direct recall lifts the stack instead of overwriting it.
+63. Press `8`, then `8`, then `r`, then `v`.
+64. Confirm `X` stays `88` after storing into register `e`.
+65. Press `1`.
+66. Confirm `X` changes to `1`, showing the stored register value is independent from the live stack.
+67. Press `q`, then `v`.
+68. Confirm `X` returns to `88` from register `e`.
+69. Confirm `Y` becomes `1`, showing direct recall pushes the prior `X` value down the stack.
 68. Press `9`, then `9`, then `r`, then `u`.
 69. Confirm `X` stays `99` after storing into register `f`.
 70. Press `1`, then `r`, then `1`.
@@ -408,6 +411,6 @@ This verifies the recent keypad timing fix.
 - The active runtime subset now uses the bottom six rows of the matrix for calculator keys and begins to follow the planned MK-61 prefix model with `k` = `F` and `p` = `K`.
 - The `a` and `b` keys now control backlight brighter/dimmer again, `e` toggles the on-device help mode, and `c` is currently free for future extension work. While help mode is active, key presses show descriptions instead of performing their normal actions.
 - The currently wired `F`-layer now includes trig, inverse trig, powers, exponentials, logarithms, `LAST X`, and the earlier `R↓`, `sqrt`, `1/x`, and `pi` functions.
-- The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, `sign`, the hour/minute conversion functions, `RND`, and the first indirect-register commands `MXI` and `XMI`.
+- The currently wired `K`-layer now includes `INT`, `FRAC`, `max`, `|x|`, `sign`, `DROP` on `K*`, the hour/minute conversion functions, `RND`, and the first indirect-register commands `MXI` and `XMI`.
 - The top status bar shows the current program counter as `PCxx` plus the calculator mode (`RUN`, `ENT`, `EEX`, or `ERR`) on the left, optionally prefixed by `F` or `K` when a one-shot prefix is armed, and the most recent key/state event on the right when it fits. When the calculator is in an error state, the status bar shows the error text instead.
 - The stack area now uses four uniform text rows without frames or separator lines.

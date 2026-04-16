@@ -11,6 +11,7 @@ g++ -std=c++17 \
   -I"${PROJECT_DIR}/include" \
   "${PROJECT_DIR}/test/rpn_calculator_regression.cpp" \
   "${PROJECT_DIR}/src/ProgramRunner.cpp" \
+  "${PROJECT_DIR}/src/CalculatorKeymap.cpp" \
   "${PROJECT_DIR}/src/RpnCalculator.cpp" \
   "${PROJECT_DIR}/src/ProgramRecorder.cpp" \
   "${PROJECT_DIR}/src/ProgramVm.cpp" \

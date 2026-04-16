@@ -34,7 +34,7 @@ constexpr CalculatorKeyAssignment kPlannedAssignments[] = {
     {'5', "5", "acos", "sign"},
     {'6', "6", "atan", "H->H.M"},
     {'+', "+", "pi", "H.M->H"},
-    {'*', "*", "x^2", ""},
+    {'*', "*", "x^2", "DROP"},
     {'1', "1", "e^x", ""},
     {'2', "2", "lg", ""},
     {'3', "3", "ln", "H->H.M.S"},
@@ -310,6 +310,9 @@ const char *helpDescriptionForLabel(const char *label) {
   if (labelEquals(label, "NOT")) {
     return "Bitwise NOT on X, using unsigned 32-bit whole-number values and a decimal result.";
   }
+  if (labelEquals(label, "DROP")) {
+    return "Drop X and shift Y to X, Z to Y, and T to Z.";
+  }
   if (labelEquals(label, "JP X<0")) {
     return "Planned direct conditional jump when X is less than zero.";
   }
@@ -505,6 +508,8 @@ CalculatorAction shiftedActionForKey(CalculatorPrefix prefix, char keyPressed) {
           return CalculatorAction::BitwiseXor;
         case 'z':
           return CalculatorAction::BitwiseNot;
+        case '*':
+          return CalculatorAction::Drop;
         default:
           return CalculatorAction::None;
       }
@@ -626,7 +631,7 @@ const char *calculatorLegend(uint8_t page) {
     case 5:
       return "p7Int p8Frc p9Max";
     case 6:
-      return "p4Abs p5Sign cClr";
+      return "p4Abs p5Sign p*Drp";
     case 7:
       return "eSett fHelp";
     default:

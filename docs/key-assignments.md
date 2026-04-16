@@ -87,7 +87,7 @@ This 6x5 block is the planned MK-61-style keyboard:
 | `5` | `5` | Enter digit `5`. | `acos` | Inverse cosine of `X`. | `sign` | Signum of `X`: `-1`, `0`, or `1`. |
 | `6` | `6` | Enter digit `6`. | `atan` | Inverse tangent of `X`. | `H->H.M` | Convert decimal hours to `hours.minutes`. |
 | `+` | `+` | Add `Y` and `X`. | `pi` | Load the constant pi into `X`. | `H.M->H` | Convert `hours.minutes` back to decimal hours. |
-| `*` | `*` | Multiply `Y` by `X`. | `x^2` | Square `X`. | `—` | Original MK-61 marks this as undefined and error-producing. |
+| `*` | `*` | Multiply `Y` by `X`. | `x^2` | Square `X`. | `DROP` | Drop the `X` register and shift the stack down (`Y->X`, `Z->Y`, `T->Z`, while `T` stays duplicated). |
 
 #### Row `1`-`v`
 

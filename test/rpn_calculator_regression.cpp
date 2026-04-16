@@ -1,4 +1,5 @@
 #include "RpnCalculator.h"
+#include "CalculatorKeymap.h"
 #include "ProgramRecorder.h"
 #include "ProgramRunner.h"
 #include "ProgramVm.h"
@@ -67,6 +68,14 @@ void expectString(const char *actual, const char *expected, const char *message)
   if ((actual == nullptr) || (std::strcmp(actual, expected) != 0)) {
     std::cerr << "FAIL: " << message << " (expected \"" << expected << "\", got \""
               << ((actual != nullptr) ? actual : "(null)") << "\")\n";
+    std::exit(1);
+  }
+}
+
+void expectAction(CalculatorAction actual, CalculatorAction expected, const char *message) {
+  if (actual != expected) {
+    std::cerr << "FAIL: " << message << " (expected action " << static_cast<int>(expected)
+              << ", got " << static_cast<int>(actual) << ")\n";
     std::exit(1);
   }
 }
@@ -284,6 +293,40 @@ void testBitwiseValidation() {
               "bitwise NOT should reject values above UINT32_MAX");
   expectError(calculator, CalculatorError::DomainError,
               "out-of-range values should trigger domain error");
+}
+
+void testDropCommand() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "1");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER after 1 for DROP");
+  enterText(calculator, "2");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER after 2 for DROP");
+  enterText(calculator, "3");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER after 3 for DROP");
+  enterText(calculator, "4");
+
+  press(calculator, CalculatorAction::Drop, "DROP should succeed");
+  expectEqual(calculator.stack().x, 3.0, "DROP should move Y into X");
+  expectEqual(calculator.stack().y, 2.0, "DROP should move Z into Y");
+  expectEqual(calculator.stack().z, 1.0, "DROP should move T into Z");
+  expectEqual(calculator.stack().t, 1.0, "DROP should keep T duplicated");
+}
+
+void testKeymapShiftedDropMapping() {
+  resetCalculatorKeymapState();
+
+  expectAction(translateKeyToCalculatorAction('p'),
+               CalculatorAction::None,
+               "p should arm K prefix without executing an action");
+  expectAction(translateKeyToCalculatorAction('*'),
+               CalculatorAction::Drop,
+               "K* should map to DROP");
+
+  resetCalculatorKeymapState();
+  expectAction(translateKeyToCalculatorAction('*'),
+               CalculatorAction::Multiply,
+               "plain * should still map to multiply");
 }
 
 void testAngleModes() {
@@ -1950,6 +1993,8 @@ int main() {
   testBitwiseBinaryOps();
   testUnsignedBehavior();
   testBitwiseValidation();
+  testDropCommand();
+  testKeymapShiftedDropMapping();
   testAngleModes();
   testRegisterStoreRecall();
   testRegisterValidation();
