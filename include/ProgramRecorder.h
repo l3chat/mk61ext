@@ -27,6 +27,7 @@ public:
                             size_t bytesBufferSize,
                             char *decodedBuffer,
                             size_t decodedBufferSize) const;
+  bool insertModeEnabled() const { return insertModeEnabled_; }
   ProgramRecorderError error() const { return error_; }
   void clearError() { error_ = ProgramRecorderError::None; }
 
@@ -52,6 +53,7 @@ private:
       AddressOperand,
       MoveNext,
       MovePrevious,
+      ToggleInsertMode,
       PrefixF,
       PrefixK,
     };
@@ -72,6 +74,7 @@ private:
   PendingState pending_ = PendingState::None;
   uint8_t pendingOpcode_ = 0;
   uint8_t pendingHighNibble_ = 0;
+  bool insertModeEnabled_ = false;
   ProgramRecorderError error_ = ProgramRecorderError::None;
 };
 

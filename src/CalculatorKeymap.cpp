@@ -13,7 +13,7 @@ constexpr CalculatorKeyAssignment kPlannedAssignments[] = {
     {'f', "EXT6", "", ""},
     {'g', "SAVE PRG", "", ""},
     {'h', "LOAD PRG", "", ""},
-    {'i', "EXT9", "", ""},
+    {'i', "PRG INS", "", ""},
     {'j', "EXT10", "", ""},
     {'k', "F", "", ""},
     {'l', "SST", "JP X<0", "JPI X<0"},
@@ -141,6 +141,9 @@ const char *helpDescriptionForLabel(const char *label) {
   }
   if (labelEquals(label, "LOAD PRG")) {
     return "Restore the saved EEPROM program, replacing the current program.";
+  }
+  if (labelEquals(label, "PRG INS")) {
+    return "In program mode, toggle between overwrite and insert editing. The status line shows OVR or INS. In insert mode, direct-address jumps and calls are retargeted after each insertion.";
   }
   if (labelEquals(label, "F")) {
     return "Arm the one-shot F prefix. Press the next key to inspect or use its F-shifted meaning.";

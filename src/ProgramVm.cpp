@@ -85,6 +85,24 @@ void copyLabel(const char *label, char *buffer, size_t bufferSize) {
   std::snprintf(buffer, bufferSize, "%s", (label != nullptr) ? label : "");
 }
 
+bool isDirectControlFlowOpcode(uint8_t opcode) {
+  switch (opcode) {
+    case 0x51:  // GTO
+    case 0x53:  // GSB
+    case 0x57:  // JP X<>0
+    case 0x58:  // L2
+    case 0x59:  // JP X>=0
+    case 0x5A:  // L3
+    case 0x5B:  // L1
+    case 0x5C:  // JP X<0
+    case 0x5D:  // L0
+    case 0x5E:  // JP X=0
+      return true;
+    default:
+      return false;
+  }
+}
+
 }  // namespace
 
 char selectorNibbleToChar(uint8_t nibble) {
@@ -379,6 +397,64 @@ bool ProgramVm::previousStepAddress(uint8_t address, uint8_t &previousAddress) c
 
   previousAddress = lastBoundary;
   return true;
+}
+
+bool ProgramVm::insertStepAt(uint8_t address, uint8_t opcode, uint8_t operand) {
+  if (!isStepBoundary(address)) {
+    return false;
+  }
+
+  const ProgramOpcodeInfo newStepInfo = describeProgramOpcode(opcode);
+  if (!newStepInfo.valid || newStepInfo.extension) {
+    return false;
+  }
+
+  const uint8_t newWidth = newStepInfo.width;
+  const int32_t newLength = static_cast<int32_t>(programLength_) + static_cast<int32_t>(newWidth);
+  if ((newLength < 0) || (newLength > kProgramCapacity)) {
+    return false;
+  }
+
+  const uint16_t trailingStart = static_cast<uint16_t>(address);
+  const uint16_t trailingCount = static_cast<uint16_t>(programLength_ - trailingStart);
+  std::memmove(program_.data() + trailingStart + newWidth, program_.data() + trailingStart, trailingCount);
+
+  program_[address] = opcode;
+  if (newWidth == 2) {
+    program_[static_cast<uint16_t>(address) + 1u] = operand;
+  }
+
+  programLength_ = static_cast<uint16_t>(newLength);
+  return true;
+}
+
+void ProgramVm::relocateDirectTargetsAfterInsert(uint8_t insertionAddress, uint8_t insertedWidth) {
+  if ((insertedWidth == 0) || (programLength_ == 0)) {
+    return;
+  }
+
+  uint16_t cursor = 0;
+  while (cursor < programLength_) {
+    const DecodedStep step = decodeAt(static_cast<uint8_t>(cursor));
+    const uint8_t width = (step.width > 0) ? step.width : 1;
+
+    if ((cursor != insertionAddress) && step.complete && isDirectControlFlowOpcode(step.opcode) && (width == 2)) {
+      const uint16_t operandIndex = cursor + 1u;
+      const uint8_t target = program_[operandIndex];
+      if (target >= insertionAddress) {
+        const uint16_t shifted = static_cast<uint16_t>(target) + insertedWidth;
+        if (shifted <= 0xFFu) {
+          program_[operandIndex] = static_cast<uint8_t>(shifted);
+        }
+      }
+    }
+
+    const uint16_t next = cursor + width;
+    if ((next <= cursor) || (next > programLength_)) {
+      break;
+    }
+    cursor = next;
+  }
 }
 
 bool ProgramVm::replaceStepAt(uint8_t address, uint8_t opcode, uint8_t operand) {

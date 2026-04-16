@@ -18,6 +18,7 @@ ProgramRecorder::ProgramRecorder() {
 void ProgramRecorder::reset() {
   prefix_ = PrefixState::None;
   clearPendingState();
+  insertModeEnabled_ = false;
   error_ = ProgramRecorderError::None;
 }
 
@@ -206,6 +207,10 @@ bool ProgramRecorder::handleKey(ProgramVm &vm, uint8_t &editAddress, char keyPre
       setError(ProgramRecorderError::None);
       return true;
     }
+    case CommandSpec::Kind::ToggleInsertMode:
+      insertModeEnabled_ = !insertModeEnabled_;
+      setError(ProgramRecorderError::None);
+      return true;
     case CommandSpec::Kind::PrefixF:
       prefix_ = PrefixState::F;
       setError(ProgramRecorderError::None);
@@ -225,13 +230,27 @@ bool ProgramRecorder::commitOpcode(ProgramVm &vm,
                                    uint8_t opcode,
                                    bool hasOperand,
                                    uint8_t operand) {
-  const bool committed = hasOperand ? vm.replaceStepAt(editAddress, opcode, operand)
-                                    : vm.replaceStepAt(editAddress, opcode);
+  const uint8_t commitAddress = editAddress;
+  bool committed = false;
+
+  if (insertModeEnabled_) {
+    const ProgramOpcodeInfo info = describeProgramOpcode(opcode);
+    committed = hasOperand ? vm.insertStepAt(commitAddress, opcode, operand) : vm.insertStepAt(commitAddress, opcode);
+    if (!committed) {
+      return false;
+    }
+
+    vm.relocateDirectTargetsAfterInsert(commitAddress, info.width);
+  } else {
+    committed =
+        hasOperand ? vm.replaceStepAt(commitAddress, opcode, operand) : vm.replaceStepAt(commitAddress, opcode);
+  }
+
   if (!committed) {
     return false;
   }
 
-  editAddress = vm.nextStepAddress(editAddress);
+  editAddress = vm.nextStepAddress(commitAddress);
   return true;
 }
 
@@ -350,6 +369,9 @@ ProgramRecorder::CommandSpec ProgramRecorder::primaryCommandForKey(char keyPress
       return command;
     case 'm':
       command.kind = CommandSpec::Kind::MovePrevious;
+      return command;
+    case 'i':
+      command.kind = CommandSpec::Kind::ToggleInsertMode;
       return command;
     case 'k':
       command.kind = CommandSpec::Kind::PrefixF;

@@ -157,7 +157,9 @@ Because program memory is byte-oriented but browsing is command-oriented, editin
 Recommended v1 rules:
 
 - `edit_pc` always points to the first byte of a decoded command, or to the append position at the end of the program
-- entering a command at `edit_pc` replaces the decoded command currently under the cursor
+- overwrite mode: entering a command at `edit_pc` replaces the decoded command currently under the cursor
+- insert mode: entering a command at `edit_pc` inserts a new command at the cursor and shifts trailing bytes forward
+- in insert mode, direct-address control-flow operands should be retargeted so existing `GTO` / `GSB` / direct conditional and `L0`-`L3` commands continue to point at the same logical destination after bytes shift
 - if the new command is wider or narrower than the old one, the trailing bytes shift accordingly
 - appending at the end inserts the new bytes at the current program length
 - if a replacement or append would exceed `0x100` bytes total, the entry is rejected

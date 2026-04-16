@@ -45,6 +45,8 @@ public:
   bool isStepBoundary(uint8_t address) const;
   uint8_t nextStepAddress(uint8_t address) const;
   bool previousStepAddress(uint8_t address, uint8_t &previousAddress) const;
+  bool insertStepAt(uint8_t address, uint8_t opcode, uint8_t operand = 0);
+  void relocateDirectTargetsAfterInsert(uint8_t insertionAddress, uint8_t insertedWidth);
   bool replaceStepAt(uint8_t address, uint8_t opcode, uint8_t operand = 0);
 
   DecodedStep decodeAt(uint8_t address) const;

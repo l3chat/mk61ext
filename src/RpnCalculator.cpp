@@ -778,9 +778,10 @@ bool RpnCalculator::setPi() {
     clearX();
   }
 
-  rememberLastX();
-  stack_[0] = kPi;
   finishEntry();
+  rememberLastX();
+  liftStack();
+  stack_[0] = kPi;
   stackLiftEnabled_ = true;
   return true;
 }
@@ -790,8 +791,9 @@ bool RpnCalculator::recallLastX() {
     clearX();
   }
 
-  stack_[0] = lastX_;
   finishEntry();
+  liftStack();
+  stack_[0] = lastX_;
   stackLiftEnabled_ = true;
   return true;
 }

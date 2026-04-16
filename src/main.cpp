@@ -1554,16 +1554,34 @@ void drawStatusBar() {
   } else if (programMode) {
     const char *recorderErrorShort = programRecorderErrorShortName(programRecorder.error());
     const char *recorderPrefix = programRecorder.activePrefixName();
+    const char *editModeShort = programRecorder.insertModeEnabled() ? "INS" : "OVR";
     const unsigned editAddress = static_cast<unsigned>(programEditAddress);
     const unsigned programLength = static_cast<unsigned>(programVm.programLength());
     if (recorderErrorShort[0] != '\0') {
-      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X E:%s", editAddress, programLength, recorderErrorShort);
+      snprintf(leftBuffer,
+               sizeof(leftBuffer),
+               "P%02X L%02X %s E:%s",
+               editAddress,
+               programLength,
+               editModeShort,
+               recorderErrorShort);
     } else if (programRecorder.hasPendingOperand()) {
-      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X PND", editAddress, programLength);
+      snprintf(leftBuffer,
+               sizeof(leftBuffer),
+               "P%02X L%02X %s PND",
+               editAddress,
+               programLength,
+               editModeShort);
     } else if (recorderPrefix[0] != '\0') {
-      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X %s", editAddress, programLength, recorderPrefix);
+      snprintf(leftBuffer,
+               sizeof(leftBuffer),
+               "P%02X L%02X %s %s",
+               editAddress,
+               programLength,
+               editModeShort,
+               recorderPrefix);
     } else {
-      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X", editAddress, programLength);
+      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X %s", editAddress, programLength, editModeShort);
     }
     formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (programRunner.hasError()) {

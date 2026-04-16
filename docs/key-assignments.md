@@ -42,7 +42,7 @@ These rows are reserved for mk61ext-specific features in the long term, but a fe
 | `f` | `HELP` | Current firmware toggles help mode on this key outside settings; while the settings screen is open, the same key cancels staged changes and restores the earlier values. The longer-term extension slot is still open. |
 | `g` | `SAVE PRG` | Current firmware saves the current program image to the program EEPROM block on demand. |
 | `h` | `LOAD PRG` | Current firmware restores the saved program image from EEPROM on demand, replacing the current program in RAM. |
-| `i` | *`EXT9`* | Reserved for mk61ext-specific features. |
+| `i` | `PRG INS` | In program mode, toggles the recorder between overwrite (`OVR`) and insert (`INS`) editing semantics. While in `INS`, direct-address control-flow commands already in memory (`GTO`, `GSB`, direct `JP`/`L0`-`L3`) are automatically retargeted after each insertion so they keep pointing at the same logical destination step. Outside program mode this key is currently unassigned. |
 | `j` | *`EXT10`* | Reserved for mk61ext-specific features. |
 
 ### Bottom Six Rows

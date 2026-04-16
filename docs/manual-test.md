@@ -157,6 +157,19 @@ Backlight brightness, backlight timeout, sleep timeout, angle mode, stack-label 
 7. Enter program mode again with `k`, then `y`.
 8. Confirm the listing still contains `00: 01      1`.
 
+## Program Insert Mode Check
+
+1. Enter program mode with `k`, then `y`.
+2. Use `m` (`BST`) until the cursor is at address `00`.
+3. Press `1`, then `2`, then `3` to record three one-byte steps.
+4. Press `m`, then `m` so the cursor is back on address `01` (`2`).
+5. Press `i` once to enable insert mode; confirm the program status line shows `INS`.
+6. Press `v` (`ENTER`) and confirm the listing becomes `1, ENTER, 2, 3` (the old `2` and `3` should shift right).
+7. Press `i` again to return to overwrite mode; confirm the status line shows `OVR`.
+8. Press `9` and confirm only the current step is replaced (length unchanged).
+9. Record a small direct-address branch/call (for example `GTO` or `GSB`) that points to a later step, then insert one command before that destination while still in `INS`.
+10. Confirm the stored destination byte on the branch/call is incremented so it still lands on the same logical destination step after insertion.
+
 ## Idle Power Check
 
 1. Open the settings screen with `e`.

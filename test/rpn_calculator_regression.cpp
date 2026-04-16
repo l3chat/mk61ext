@@ -637,6 +637,33 @@ void testRecallPushesStack() {
   expectEqual(calculator.stack().z, 5.0, "recall-push sequence should preserve the older Y value in Z");
 }
 
+void testPiAndLastXPushStack() {
+  RpnCalculator calculator;
+
+  clearAndEnter(calculator, "7");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER before PI stack-lift test");
+  enterText(calculator, "8");
+  press(calculator, CalculatorAction::Pi, "PI should succeed");
+  expectNear(calculator.stack().x, 3.14159265358979323846, 1e-15,
+             "PI should load pi into X");
+  expectEqual(calculator.stack().y, 8.0,
+              "PI should push the prior X value into Y");
+  expectEqual(calculator.stack().z, 7.0,
+              "PI should preserve the older Y value in Z");
+
+  clearAndEnter(calculator, "2");
+  press(calculator, CalculatorAction::Enter, "failed to press ENTER before LAST X setup");
+  enterText(calculator, "3");
+  press(calculator, CalculatorAction::Add, "failed to compute 2 + 3 before LAST X setup");
+  expectEqual(calculator.stack().x, 5.0, "2 + 3 should leave 5 in X before LAST X");
+
+  enterText(calculator, "9");
+  press(calculator, CalculatorAction::LastX, "LAST X should succeed");
+  expectEqual(calculator.stack().x, 3.0, "LAST X should restore the saved last X value");
+  expectEqual(calculator.stack().y, 9.0, "LAST X should push the prior X value into Y");
+  expectEqual(calculator.stack().z, 5.0, "LAST X should preserve the older Y value in Z");
+}
+
 void testProgramVmOpcodeInfo() {
   ProgramOpcodeInfo digitInfo = describeProgramOpcode(0x07);
   expectTrue(digitInfo.valid, "opcode 07 should be valid");
@@ -796,6 +823,27 @@ void testProgramVmStepReplacement() {
               "replacement should reject non-boundary addresses inside two-byte steps");
 }
 
+void testProgramVmStepInsertion() {
+  ProgramVm vm;
+  const uint8_t initialProgram[] = {0x01, 0x02, 0x50};
+  expectTrue(vm.loadProgram(initialProgram, sizeof(initialProgram)),
+             "ProgramVm should load insert-step baseline program");
+
+  expectTrue(vm.insertStepAt(1, 0x51, 0x20),
+             "inserting a two-byte step at a boundary should succeed");
+  expectEqualU16(vm.programLength(), 5, "inserted two-byte step should grow program length by two");
+  const uint8_t insertedProgram[] = {0x01, 0x51, 0x20, 0x02, 0x50};
+  for (uint8_t index = 0; index < sizeof(insertedProgram); ++index) {
+    expectEqualByte(vm.programByte(index), insertedProgram[index],
+                    "insertion should shift trailing bytes forward");
+  }
+
+  expectFalse(vm.insertStepAt(2, 0x0E),
+              "insertion should reject non-boundary addresses inside two-byte steps");
+  expectFalse(vm.insertStepAt(1, 0x55),
+              "insertion should reject invalid opcodes");
+}
+
 void testProgramVmReplacementOverflow() {
   ProgramVm fullVm;
   expectTrue(fullVm.setProgramLength(ProgramVm::kProgramCapacity),
@@ -811,6 +859,19 @@ void testProgramVmReplacementOverflow() {
   expectTrue(nearlyFullVm.replaceStepAt(255, 0x50),
              "appending a one-byte step at 255 should still fit");
   expectEqualU16(nearlyFullVm.programLength(), 256, "successful append should fill program capacity");
+}
+
+void testProgramVmInsertionOverflow() {
+  ProgramVm nearlyFullVm;
+  expectTrue(nearlyFullVm.setProgramLength(255),
+             "setting a nearly full program should succeed for insert overflow test");
+
+  expectFalse(nearlyFullVm.insertStepAt(255, 0x51, 0x00),
+              "inserting a two-byte step at 255 should overflow");
+  expectTrue(nearlyFullVm.insertStepAt(255, 0x50),
+             "inserting a one-byte step at 255 should still fit");
+  expectEqualU16(nearlyFullVm.programLength(), 256,
+                 "successful one-byte insertion at 255 should fill program capacity");
 }
 
 void testProgramRecorderBasicFlow() {
@@ -837,6 +898,107 @@ void testProgramRecorderBasicFlow() {
   expectTrue(recorder.handleKey(vm, editAddress, 'l'),
              "SST at append position should keep the cursor at program end");
   expectEqualByte(editAddress, 1, "SST at end should not move past program length");
+}
+
+void testProgramRecorderInsertMode() {
+  ProgramVm vm;
+  ProgramRecorder recorder;
+  uint8_t editAddress = 0;
+
+  expectTrue(recorder.handleKey(vm, editAddress, '1'),
+             "recording digit 1 should append opcode 01");
+  expectTrue(recorder.handleKey(vm, editAddress, '2'),
+             "recording digit 2 should append opcode 02");
+  expectTrue(recorder.handleKey(vm, editAddress, '3'),
+             "recording digit 3 should append opcode 03");
+  expectEqualU16(vm.programLength(), 3, "baseline recorder program should use three bytes");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'm'),
+             "BST should move from end to the previous step");
+  expectTrue(recorder.handleKey(vm, editAddress, 'm'),
+             "BST should move again to the middle step");
+  expectEqualByte(editAddress, 1, "cursor should land on byte 01 before insertion");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'i'),
+             "i should toggle recorder insert mode on");
+  expectTrue(recorder.insertModeEnabled(), "insert mode should be enabled after first toggle");
+  expectTrue(recorder.handleKey(vm, editAddress, 'v'),
+             "recording ENTER in insert mode should insert instead of replace");
+  const uint8_t insertedExpected[] = {0x01, 0x0E, 0x02, 0x03};
+  expectEqualU16(vm.programLength(), sizeof(insertedExpected),
+                 "insert mode should grow program length when inserting at a non-end boundary");
+  for (uint8_t index = 0; index < sizeof(insertedExpected); ++index) {
+    expectEqualByte(vm.programByte(index), insertedExpected[index],
+                    "insert mode should preserve trailing steps after insertion");
+  }
+  expectEqualByte(editAddress, 2,
+                  "cursor should advance to the step after the newly inserted opcode");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'i'),
+             "i should toggle recorder insert mode off");
+  expectFalse(recorder.insertModeEnabled(), "insert mode should be disabled after second toggle");
+  expectTrue(recorder.handleKey(vm, editAddress, '9'),
+             "recording in overwrite mode should replace the current step");
+  const uint8_t overwriteExpected[] = {0x01, 0x0E, 0x09, 0x03};
+  expectEqualU16(vm.programLength(), sizeof(overwriteExpected),
+                 "overwrite mode should keep program length stable");
+  for (uint8_t index = 0; index < sizeof(overwriteExpected); ++index) {
+    expectEqualByte(vm.programByte(index), overwriteExpected[index],
+                    "overwrite mode should replace the step under the cursor");
+  }
+}
+
+void testProgramRecorderInsertModeRelocatesDirectTargets() {
+  ProgramVm vm;
+  ProgramRecorder recorder;
+  uint8_t editAddress = 0;
+
+  // Build: 00 GSB 06, 02 GTO 06, 04 1, 05 2, 06 HALT
+  expectTrue(recorder.handleKey(vm, editAddress, 't'),
+             "GSB should arm address entry for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, '0'),
+             "GSB high nibble should accept 0 for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, '6'),
+             "GSB low nibble should accept 6 for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, 's'),
+             "GTO should arm address entry for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, '0'),
+             "GTO high nibble should accept 0 for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, '6'),
+             "GTO low nibble should accept 6 for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, '1'),
+             "recording digit 1 should succeed for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, '2'),
+             "recording digit 2 should succeed for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, 'o'),
+             "recording HALT should succeed for relocation test");
+  expectEqualU16(vm.programLength(), 7,
+                 "relocation baseline program should use seven bytes");
+  expectEqualByte(vm.programByte(1), 0x06, "GSB baseline target should be 06");
+  expectEqualByte(vm.programByte(3), 0x06, "GTO baseline target should be 06");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'm'),
+             "BST should move from end to HALT step for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, 'm'),
+             "BST should move to digit 2 for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, 'm'),
+             "BST should move to digit 1 for relocation test");
+  expectEqualByte(editAddress, 4, "cursor should be at address 04 before insertion");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'i'),
+             "i should enable insert mode for relocation test");
+  expectTrue(recorder.insertModeEnabled(),
+             "insert mode should be enabled for relocation test");
+  expectTrue(recorder.handleKey(vm, editAddress, 'v'),
+             "inserting ENTER should succeed in relocation test");
+
+  // After inserting one byte at address 04, old target 06 should relocate to 07.
+  expectEqualU16(vm.programLength(), 8,
+                 "relocation test insertion should grow program length by one");
+  expectEqualByte(vm.programByte(1), 0x07,
+                  "GSB target should relocate from 06 to 07 after insertion");
+  expectEqualByte(vm.programByte(3), 0x07,
+                  "GTO target should relocate from 06 to 07 after insertion");
 }
 
 void testProgramRecorderRegisterAndAddressOperands() {
@@ -1803,12 +1965,17 @@ int main() {
   testLongMantissaDigitsAreRejected();
   testProblematicLongMixedMantissaStopsAtPrecisionLimit();
   testRecallPushesStack();
+  testPiAndLastXPushStack();
   testProgramVmOpcodeInfo();
   testProgramVmFormattingAndListing();
   testProgramVmStepNavigation();
   testProgramVmStepReplacement();
+  testProgramVmStepInsertion();
   testProgramVmReplacementOverflow();
+  testProgramVmInsertionOverflow();
   testProgramRecorderBasicFlow();
+  testProgramRecorderInsertMode();
+  testProgramRecorderInsertModeRelocatesDirectTargets();
   testProgramRecorderRegisterAndAddressOperands();
   testProgramRecorderShiftedFamilies();
   testProgramRecorderErrors();
