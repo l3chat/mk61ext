@@ -41,17 +41,23 @@ public:
 
 private:
   static constexpr uint8_t kCallStackCapacity = 16;
+  static constexpr uint16_t kBoundaryCacheSize = ProgramVm::kProgramCapacity + 1;
 
+  void rebuildStepBoundaryCache(const ProgramVm &vm);
+  bool isCachedStepBoundary(uint8_t address) const;
   bool isValidTargetAddress(const ProgramVm &vm, uint8_t address) const;
   bool pushReturnAddress(uint8_t address);
   bool popReturnAddress(uint8_t &address);
   void fail(ProgramRunnerError error);
 
+  std::array<bool, kBoundaryCacheSize> stepBoundaryCache_{};
   std::array<uint8_t, kCallStackCapacity> callStack_{};
+  uint16_t cachedProgramLength_ = 0;
   uint8_t callDepth_ = 0;
   uint8_t runAddress_ = 0;
   bool running_ = false;
   bool pausedExecution_ = false;
+  bool stepBoundaryCacheValid_ = false;
   ProgramRunnerError error_ = ProgramRunnerError::None;
 };
 

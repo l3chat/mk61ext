@@ -248,15 +248,20 @@ ProgramRunner::ProgramRunner() {
 }
 
 void ProgramRunner::reset() {
+  stepBoundaryCache_.fill(false);
+  cachedProgramLength_ = 0;
   callDepth_ = 0;
   runAddress_ = 0;
   running_ = false;
   pausedExecution_ = false;
+  stepBoundaryCacheValid_ = false;
   error_ = ProgramRunnerError::None;
 }
 
 bool ProgramRunner::start(const ProgramVm &vm) {
-  if ((runAddress_ > vm.programLength()) || !vm.isStepBoundary(runAddress_)) {
+  rebuildStepBoundaryCache(vm);
+
+  if (!isCachedStepBoundary(runAddress_)) {
     fail(ProgramRunnerError::InvalidAddress);
     return false;
   }
@@ -294,10 +299,13 @@ void ProgramRunner::stop() {
 }
 
 void ProgramRunner::resetRunAddress() {
+  stepBoundaryCache_.fill(false);
+  cachedProgramLength_ = 0;
   callDepth_ = 0;
   runAddress_ = 0;
   running_ = false;
   pausedExecution_ = false;
+  stepBoundaryCacheValid_ = false;
   error_ = ProgramRunnerError::None;
 }
 
@@ -325,6 +333,10 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
   }
 
   const uint16_t programLength = vm.programLength();
+  if (!stepBoundaryCacheValid_ || (cachedProgramLength_ != programLength)) {
+    rebuildStepBoundaryCache(vm);
+  }
+
   if (runAddress_ == programLength) {
     running_ = false;
     pausedExecution_ = false;
@@ -332,7 +344,7 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
     return true;
   }
 
-  if ((runAddress_ > programLength) || !vm.isStepBoundary(runAddress_)) {
+  if (!isCachedStepBoundary(runAddress_)) {
     fail(ProgramRunnerError::InvalidAddress);
     return false;
   }
@@ -343,7 +355,11 @@ bool ProgramRunner::step(const ProgramVm &vm, RpnCalculator &calculator) {
     return false;
   }
 
-  const uint8_t nextAddress = vm.nextStepAddress(runAddress_);
+  uint16_t nextAddress16 = static_cast<uint16_t>(runAddress_) + static_cast<uint16_t>((step.width > 0) ? step.width : 1);
+  if (nextAddress16 > programLength) {
+    nextAddress16 = programLength;
+  }
+  const uint8_t nextAddress = static_cast<uint8_t>(nextAddress16);
 
   if (step.opcode < 0x40) {
     const CalculatorAction action = calculatorActionForOpcode(step.opcode);
@@ -618,8 +634,45 @@ void ProgramRunner::fail(ProgramRunnerError error) {
   error_ = error;
 }
 
+void ProgramRunner::rebuildStepBoundaryCache(const ProgramVm &vm) {
+  stepBoundaryCache_.fill(false);
+  cachedProgramLength_ = vm.programLength();
+  if (cachedProgramLength_ > ProgramVm::kProgramCapacity) {
+    stepBoundaryCacheValid_ = false;
+    return;
+  }
+
+  uint16_t cursor = 0;
+  stepBoundaryCache_[0] = true;
+  while (cursor < cachedProgramLength_) {
+    const ProgramVm::DecodedStep step = vm.decodeAt(static_cast<uint8_t>(cursor));
+    uint16_t width = (step.width > 0) ? step.width : 1;
+    uint16_t next = cursor + width;
+    if (next > cachedProgramLength_) {
+      next = cachedProgramLength_;
+    }
+
+    stepBoundaryCache_[next] = true;
+    if (next <= cursor) {
+      break;
+    }
+    cursor = next;
+  }
+
+  stepBoundaryCacheValid_ = true;
+}
+
+bool ProgramRunner::isCachedStepBoundary(uint8_t address) const {
+  if (!stepBoundaryCacheValid_ || (address > cachedProgramLength_)) {
+    return false;
+  }
+
+  return stepBoundaryCache_[address];
+}
+
 bool ProgramRunner::isValidTargetAddress(const ProgramVm &vm, uint8_t address) const {
-  return (address <= vm.programLength()) && vm.isStepBoundary(address);
+  (void)vm;
+  return isCachedStepBoundary(address);
 }
 
 bool ProgramRunner::pushReturnAddress(uint8_t address) {

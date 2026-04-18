@@ -153,7 +153,8 @@ constexpr int kHelpTextWidth = 126;
 constexpr int kProgramListFirstY = 10;
 constexpr int kProgramListRowHeight = 9;
 constexpr uint8_t kProgramListVisibleRows = 6;
-constexpr uint8_t kProgramRunStepsPerLoop = 8;
+constexpr uint32_t kProgramRunSliceBudgetUs = 1500;
+constexpr uint16_t kProgramRunMaxStepsPerSlice = 512;
 constexpr int kSettingsFirstRowY = 10;
 constexpr int kSettingsRowHeight = 7;
 constexpr int kSettingsCursorBoxWidth = 6;
@@ -1343,12 +1344,19 @@ void updateProgramExecution() {
     return;
   }
 
-  for (uint8_t step = 0; step < kProgramRunStepsPerLoop; ++step) {
-    if (!programRunner.isRunning()) {
+  const uint32_t sliceStartUs = micros();
+  uint16_t executedSteps = 0;
+  while (programRunner.isRunning()) {
+    if (executedSteps >= kProgramRunMaxStepsPerSlice) {
+      break;
+    }
+
+    if (executedSteps > 0 && (static_cast<uint32_t>(micros() - sliceStartUs) >= kProgramRunSliceBudgetUs)) {
       break;
     }
 
     (void)programRunner.step(programVm, calculator);
+    ++executedSteps;
   }
 
   lastUserActivityMs = millis();

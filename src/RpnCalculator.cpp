@@ -1235,9 +1235,8 @@ void RpnCalculator::startEntry() {
 }
 
 void RpnCalculator::finishEntry() {
-  if (entering_ && !syncValueFromEntryBuffer()) {
-    error_ = CalculatorError::DomainError;
-  }
+  // Entry editing paths already keep stack_[0] synchronized with entryBuffer_.
+  // Avoid reparsing with strtod() on every operation commit.
   entering_ = false;
   clearEntryBuffer();
   refreshEntryFlags();

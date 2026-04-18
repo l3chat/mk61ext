@@ -68,6 +68,8 @@ The main loop intentionally includes a small delay in `src/main.cpp`.
 - Program-run mode delay: no intentional `delay(...)` while `programRunner.isRunning()`.
 - Active calculator/UI mode delay: `kLoopDelayMs = 2 ms`.
 - Sleep mode delay: `kSleepLoopDelayMs = 100 ms`.
+- Program-run execution is now time-sliced: each loop runs VM steps until either `~1.5 ms` budget is used or `512` steps are executed, then returns to input/UI tasks.
+- Program-run target validation now uses a cached step-boundary map inside `ProgramRunner` instead of repeated full boundary scans.
 
 This delay is intentional and serves three purposes:
 
