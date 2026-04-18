@@ -153,8 +153,8 @@ constexpr int kHelpTextWidth = 126;
 constexpr int kProgramListFirstY = 10;
 constexpr int kProgramListRowHeight = 9;
 constexpr uint8_t kProgramListVisibleRows = 6;
-constexpr uint32_t kProgramRunSliceBudgetUs = 1500;
-constexpr uint16_t kProgramRunMaxStepsPerSlice = 512;
+constexpr uint16_t kKeyPollIntervalMsIdle = 2;
+constexpr uint16_t kKeyPollIntervalMsRun = 1;
 constexpr int kSettingsFirstRowY = 10;
 constexpr int kSettingsRowHeight = 7;
 constexpr int kSettingsCursorBoxWidth = 6;
@@ -343,6 +343,7 @@ std::array<uint8_t, ProgramVm::kProgramCapacity> savedProgramImage{};
 uint16_t savedProgramLength = 0;
 bool savedProgramImageValid = false;
 uint32_t lastProgramRunDisplayRefreshMs = 0;
+uint32_t lastKeyPollMs = 0;
 
 StoredSettings defaultStoredSettings() {
   StoredSettings settings{};
@@ -1311,6 +1312,13 @@ const char *keyStateName(KeyState state) {
 }
 
 void updateInput() {
+  const uint32_t now = millis();
+  const uint32_t keyPollIntervalMs = programRunner.isRunning() ? kKeyPollIntervalMsRun : kKeyPollIntervalMsIdle;
+  if ((lastKeyPollMs != 0) && ((now - lastKeyPollMs) < keyPollIntervalMs)) {
+    return;
+  }
+  lastKeyPollMs = now;
+
   const bool keyActivity = keypad.getKeys();
 
   for (byte index = 0; index < keypad.numKeys(); index++) {
@@ -1344,19 +1352,20 @@ void updateProgramExecution() {
     return;
   }
 
-  const uint32_t sliceStartUs = micros();
-  uint16_t executedSteps = 0;
+  const uint32_t refreshMs = programRunDisplayRefreshMilliseconds(programRunDisplayRefreshIndex);
   while (programRunner.isRunning()) {
-    if (executedSteps >= kProgramRunMaxStepsPerSlice) {
-      break;
-    }
-
-    if (executedSteps > 0 && (static_cast<uint32_t>(micros() - sliceStartUs) >= kProgramRunSliceBudgetUs)) {
-      break;
-    }
-
     (void)programRunner.step(programVm, calculator);
-    ++executedSteps;
+    updateInput();
+
+    if (!programRunner.isRunning()) {
+      break;
+    }
+
+    if ((refreshMs > 0) &&
+        ((lastProgramRunDisplayRefreshMs == 0) ||
+         (static_cast<uint32_t>(millis() - lastProgramRunDisplayRefreshMs) >= refreshMs))) {
+      break;
+    }
   }
 
   lastUserActivityMs = millis();
