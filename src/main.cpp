@@ -249,6 +249,11 @@ struct HelpState {
   CalculatorPrefix prefix = CalculatorPrefix::None;
 };
 
+struct CommandStatus {
+  bool hasLast = false;
+  char last[16] = {};
+};
+
 struct StoredSettings {
   uint32_t magic = kSettingsMagic;
   uint8_t version = kSettingsVersion;
@@ -332,6 +337,7 @@ bool displaySleeping = false;
 uint32_t lastUserActivityMs = 0;
 KeypadDiagnostics keypadDiagnostics;
 HelpState helpState;
+CommandStatus commandStatus;
 SettingsState settingsState;
 PendingRegisterOperation pendingRegisterOperation = PendingRegisterOperation::None;
 bool programMode = false;
@@ -516,6 +522,8 @@ bool applyCpuFrequencySetting(uint8_t index) {
 void applyBrightness();
 void updatePowerSourceState();
 void normalizeProgramEditAddress();
+void rememberLastCommand(const char *label);
+void rememberLastCommandForKey(char keyPressed, CalculatorPrefix prefix);
 
 void noteUserActivity() {
   lastUserActivityMs = millis();
@@ -1052,6 +1060,35 @@ const char *pendingRegisterOperationName() {
   return "";
 }
 
+const char *pendingRegisterOperationName(PendingRegisterOperation operation) {
+  switch (operation) {
+    case PendingRegisterOperation::DirectRecall:
+      return "MX";
+    case PendingRegisterOperation::DirectStore:
+      return "XM";
+    case PendingRegisterOperation::IndirectRecall:
+      return "MXI";
+    case PendingRegisterOperation::IndirectStore:
+      return "XMI";
+    case PendingRegisterOperation::None:
+      return "";
+  }
+
+  return "";
+}
+
+char registerName(uint8_t index) {
+  if (index <= 9) {
+    return static_cast<char>('0' + index);
+  }
+
+  if (index <= 15) {
+    return static_cast<char>('a' + (index - 10));
+  }
+
+  return '?';
+}
+
 bool decodeRegisterKey(char keyPressed, uint8_t &index) {
   if ((keyPressed >= '0') && (keyPressed <= '9')) {
     index = static_cast<uint8_t>(keyPressed - '0');
@@ -1148,18 +1185,33 @@ bool handleRegisterOperationKey(char keyPressed) {
     return true;
   }
 
+  char commandBuffer[16];
+  std::snprintf(commandBuffer,
+                sizeof(commandBuffer),
+                "%s %c",
+                pendingRegisterOperationName(operation),
+                registerName(registerIndex));
+
   switch (operation) {
     case PendingRegisterOperation::DirectRecall:
-      (void)calculator.recallRegister(registerIndex);
+      if (calculator.recallRegister(registerIndex)) {
+        rememberLastCommand(commandBuffer);
+      }
       return true;
     case PendingRegisterOperation::DirectStore:
-      (void)calculator.storeRegister(registerIndex);
+      if (calculator.storeRegister(registerIndex)) {
+        rememberLastCommand(commandBuffer);
+      }
       return true;
     case PendingRegisterOperation::IndirectRecall:
-      (void)calculator.recallIndirectRegister(registerIndex);
+      if (calculator.recallIndirectRegister(registerIndex)) {
+        rememberLastCommand(commandBuffer);
+      }
       return true;
     case PendingRegisterOperation::IndirectStore:
-      (void)calculator.storeIndirectRegister(registerIndex);
+      if (calculator.storeIndirectRegister(registerIndex)) {
+        rememberLastCommand(commandBuffer);
+      }
       return true;
     case PendingRegisterOperation::None:
       return false;
@@ -1172,21 +1224,27 @@ void handleSettingsPressedKey(char keyPressed) {
   switch (keyPressed) {
     case 'a':
       selectPreviousSettingsItem();
+      rememberLastCommand("SET PREV");
       return;
     case 'b':
       selectNextSettingsItem();
+      rememberLastCommand("SET NEXT");
       return;
     case 'c':
       adjustSelectedSetting(false);
+      rememberLastCommand("SET -");
       return;
     case 'd':
       adjustSelectedSetting(true);
+      rememberLastCommand("SET +");
       return;
     case 'e':
       exitSettingsMode();
+      rememberLastCommand("SET SAVE");
       return;
     case 'f':
       cancelSettingsMode();
+      rememberLastCommand("SET ESC");
       return;
     default:
       return;
@@ -1197,17 +1255,20 @@ void handleProgramPressedKey(char keyPressed) {
   if ((keyPressed == 'x') && !programRecorder.hasPendingOperand() &&
       (std::strcmp(programRecorder.activePrefixName(), "F") == 0)) {
     exitProgramMode();
+    rememberLastCommand("RUN");
     return;
   }
 
   if (!programRecorder.hasPendingOperand() && (programRecorder.activePrefixName()[0] == '\0')) {
     if (keyPressed == 'g') {
       (void)saveProgramToEeprom();
+      rememberLastCommand("SAVE PRG");
       return;
     }
 
     if (keyPressed == 'h') {
       (void)restoreProgramFromEeprom();
+      rememberLastCommand("LOAD PRG");
       return;
     }
   }
@@ -1228,12 +1289,14 @@ void handlePressedKey(char keyPressed) {
   if (programRunner.isRunning()) {
     if (runControlContext && (keyPressed == 'o')) {
       programRunner.stop();
+      rememberLastCommand("STOP");
     }
     return;
   }
 
   if (keyPressed == 'f') {
     toggleHelpMode();
+    rememberLastCommand(helpState.enabled ? "HELP ON" : "HELP OFF");
     return;
   }
 
@@ -1249,36 +1312,46 @@ void handlePressedKey(char keyPressed) {
 
   if ((activeCalculatorPrefix() == CalculatorPrefix::F) && (keyPressed == 'y')) {
     enterProgramMode();
+    rememberLastCommand("PRG");
     return;
   }
 
   if (keyPressed == 'e') {
     enterSettingsMode();
+    rememberLastCommand("SETTINGS");
     return;
   }
 
   if (runControlContext && (keyPressed == 'o')) {
     (void)programRunner.start(programVm, calculator);
+    if (programRunner.isRunning()) {
+      rememberLastCommand("RUN");
+    }
     return;
   }
 
   if (runControlContext && (keyPressed == 'n')) {
     programRunner.resetRunAddress();
+    rememberLastCommand("PC 00");
     return;
   }
 
   if (runControlContext && (keyPressed == 't')) {
-    (void)programRunner.singleStep(programVm, calculator);
+    if (programRunner.singleStep(programVm, calculator)) {
+      rememberLastCommand("SST");
+    }
     return;
   }
 
   if (runControlContext && (keyPressed == 'g')) {
     (void)saveProgramToEeprom();
+    rememberLastCommand("SAVE PRG");
     return;
   }
 
   if (runControlContext && (keyPressed == 'h')) {
     (void)restoreProgramFromEeprom();
+    rememberLastCommand("LOAD PRG");
     return;
   }
 
@@ -1289,26 +1362,13 @@ void handlePressedKey(char keyPressed) {
     return;
   }
 
+  const CalculatorPrefix prefixBefore = activeCalculatorPrefix();
   const CalculatorAction action = translateKeyToCalculatorAction(keyPressed);
   if (action != CalculatorAction::None) {
     programRunner.clearPausedExecution();
+    rememberLastCommandForKey(keyPressed, prefixBefore);
   }
   calculator.apply(action);
-}
-
-const char *keyStateName(KeyState state) {
-  switch (state) {
-    case IDLE:
-      return "IDLE";
-    case PRESSED:
-      return "PRESS";
-    case HOLD:
-      return "HOLD";
-    case RELEASED:
-      return "REL";
-  }
-
-  return "?";
 }
 
 void updateInput() {
@@ -1511,7 +1571,7 @@ const char *calculatorModeName() {
     return "ENT";
   }
 
-  return "RUN";
+  return "CALC";
 }
 
 const char *programRecorderErrorShortName(ProgramRecorderError error) {
@@ -1529,22 +1589,64 @@ const char *programRecorderErrorShortName(ProgramRecorderError error) {
   return "ERR";
 }
 
-void formatEventLabel(char *buffer, size_t bufferSize) {
-  if (!keypadDiagnostics.hasEvent) {
-    snprintf(buffer, bufferSize, "--");
+void rememberLastCommand(const char *label) {
+  if ((label == nullptr) || (label[0] == '\0')) {
     return;
   }
 
-  snprintf(buffer, bufferSize, "%c %s", keypadDiagnostics.lastKey, keyStateName(keypadDiagnostics.lastState));
+  commandStatus.hasLast = true;
+  std::snprintf(commandStatus.last, sizeof(commandStatus.last), "%s", label);
 }
 
-bool shouldShowRecentEvent() {
-  return keypadDiagnostics.hasEvent && ((millis() - keypadDiagnostics.lastEventMillis) < kRecentEventDisplayMs);
+const char *commandLabelForKey(char keyPressed, CalculatorPrefix prefix) {
+  const CalculatorKeyAssignment *assignment = plannedCalculatorKeyAssignment(keyPressed);
+  if (assignment == nullptr) {
+    return nullptr;
+  }
+
+  switch (prefix) {
+    case CalculatorPrefix::F:
+      return assignment->fShifted;
+    case CalculatorPrefix::K:
+      return assignment->kShifted;
+    case CalculatorPrefix::None:
+      return assignment->primary;
+  }
+
+  return nullptr;
+}
+
+void rememberLastCommandForKey(char keyPressed, CalculatorPrefix prefix) {
+  const char *label = commandLabelForKey(keyPressed, prefix);
+  if ((label == nullptr) || (label[0] == '\0')) {
+    return;
+  }
+
+  rememberLastCommand(label);
+}
+
+bool formatCommandProgress(char *buffer, size_t bufferSize) {
+  if (pendingRegisterOperation != PendingRegisterOperation::None) {
+    std::snprintf(buffer, bufferSize, "IN %s ?", pendingRegisterOperationName());
+    return true;
+  }
+
+  const char *prefixName = activeCalculatorPrefixName();
+  if (prefixName[0] != '\0') {
+    std::snprintf(buffer, bufferSize, "IN %s ?", prefixName);
+    return true;
+  }
+
+  return false;
 }
 
 void formatStatusRightText(char *buffer, size_t bufferSize) {
-  if (shouldShowRecentEvent()) {
-    formatEventLabel(buffer, bufferSize);
+  if (formatCommandProgress(buffer, bufferSize)) {
+    return;
+  }
+
+  if (commandStatus.hasLast) {
+    std::snprintf(buffer, bufferSize, "CMD %.12s", commandStatus.last);
     return;
   }
 
