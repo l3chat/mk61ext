@@ -61,6 +61,27 @@ If auto-detection ever picks the wrong device, override the serial port explicit
 pio run -t upload --upload-port /dev/ttyACM0
 ```
 
+## Loop Timing
+
+The main loop intentionally includes a small delay in `src/main.cpp`.
+
+- Program-run mode delay: no intentional `delay(...)` while `programRunner.isRunning()`.
+- Active calculator/UI mode delay: `kLoopDelayMs = 2 ms`.
+- Sleep mode delay: `kSleepLoopDelayMs = 100 ms`.
+
+This delay is intentional and serves three purposes:
+
+- It prevents a busy-spin loop that would otherwise run at 100% CPU all the time.
+- It keeps UI behavior and keypad polling cadence stable in this cooperative single-loop design.
+- It limits unnecessary full-screen LCD update pressure (the current display path is software SPI), which helps responsiveness and power usage.
+- During active program execution, that intentional delay is skipped so the VM can run as fast as possible between screen refresh slots.
+
+Latency impact:
+
+- Any key is handled on the next loop pass, so loop delay contributes up to one loop period of wait.
+- The keypad layer also applies debounce (`5 ms`), so measured end-to-end key-to-visible latency is not pure math execution time.
+- Arithmetic itself (for example `X * Y`) is very fast; most perceived delay is input polling + debounce + display refresh timing.
+
 ## Manual Test
 
 See [docs/manual-test.md](docs/manual-test.md) for the current hardware bring-up checklist and keypad diagnostics expectations.

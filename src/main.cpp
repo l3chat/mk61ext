@@ -137,7 +137,7 @@ constexpr uint8_t kEepromSdaPin = 14;
 constexpr uint8_t kEepromSclPin = 15;
 constexpr uint32_t kEepromClockHz = 400000;
 constexpr uint16_t kDisplayContrast = 20;
-constexpr uint16_t kLoopDelayMs = 20;
+constexpr uint16_t kLoopDelayMs = 2;
 constexpr uint16_t kSleepLoopDelayMs = 100;
 constexpr int kDisplayWidth = 128;
 constexpr int kStatusBarHeight = 8;
@@ -1929,5 +1929,7 @@ void loop() {
 
     display.sendBuffer();
   }
-  delay(displaySleeping ? kSleepLoopDelayMs : kLoopDelayMs);
+  if (!programRunner.isRunning()) {
+    delay(displaySleeping ? kSleepLoopDelayMs : kLoopDelayMs);
+  }
 }

@@ -3,7 +3,7 @@
 Keypad::Keypad(char *userKeymap, byte *row, byte *col, byte numRows, byte numCols)
     : rowPins(row), columnPins(col), sizeKpd{numRows, numCols} {
   begin(userKeymap);
-  setDebounceTime(10);
+  setDebounceTime(5);
   setHoldTime(500);
 }
 
