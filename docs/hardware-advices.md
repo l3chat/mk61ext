@@ -14,7 +14,7 @@ It is based on the current firmware behavior, wiring constraints, and recent har
 
 - The active firmware intentionally throttles the main loop with `2 ms` delay in normal calculator/UI mode and `100 ms` in display-sleep mode.
 - During active program execution (`RUN`), the loop now uses no intentional delay so execution can proceed at full speed between screen-refresh gates.
-- Keypad polling is timer-driven (`~2 ms` in normal mode, `~1 ms` in active `RUN`) instead of relying on raw loop frequency.
+- Keypad polling is timer-driven (`~2 ms` in normal mode, `~10 ms` in active `RUN`) instead of relying on raw loop frequency.
 - During `RUN`, execution is no longer constrained by a fixed per-loop slice budget; it runs continuously and yields at stop-key checks and run-screen refresh checkpoints.
 - This delay is not for arithmetic correctness; it is for CPU/power control and stable UI cadence in the single-loop architecture.
 - Measured key-to-result time therefore includes loop polling, keypad debounce, and display refresh time, not only the math operation itself.

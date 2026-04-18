@@ -68,7 +68,7 @@ The main loop intentionally includes a small delay in `src/main.cpp`.
 - Program-run mode delay: no intentional `delay(...)` while `programRunner.isRunning()`.
 - Active calculator/UI mode delay: `kLoopDelayMs = 2 ms`.
 - Sleep mode delay: `kSleepLoopDelayMs = 100 ms`.
-- Keypad polling is timer-driven: `~2 ms` cadence in normal mode and `~1 ms` cadence during active `RUN`.
+- Keypad polling is timer-driven: `~2 ms` cadence in normal mode and `~10 ms` cadence during active `RUN` (tunable in `kKeyPollIntervalMsRun`).
 - During `RUN`, VM execution is no longer capped by a fixed per-loop step budget; it runs continuously and yields on stop-key handling or run-screen refresh checkpoints.
 - Program-run target validation now uses a cached step-boundary map inside `ProgramRunner` instead of repeated full boundary scans.
 

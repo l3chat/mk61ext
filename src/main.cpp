@@ -154,7 +154,7 @@ constexpr int kProgramListFirstY = 10;
 constexpr int kProgramListRowHeight = 9;
 constexpr uint8_t kProgramListVisibleRows = 6;
 constexpr uint16_t kKeyPollIntervalMsIdle = 2;
-constexpr uint16_t kKeyPollIntervalMsRun = 1;
+constexpr uint16_t kKeyPollIntervalMsRun = 10;
 constexpr int kSettingsFirstRowY = 10;
 constexpr int kSettingsRowHeight = 7;
 constexpr int kSettingsCursorBoxWidth = 6;
@@ -1355,15 +1355,23 @@ void updateProgramExecution() {
   const uint32_t refreshMs = programRunDisplayRefreshMilliseconds(programRunDisplayRefreshIndex);
   while (programRunner.isRunning()) {
     (void)programRunner.step(programVm, calculator);
-    updateInput();
 
     if (!programRunner.isRunning()) {
       break;
     }
 
+    uint32_t now = millis();
+    if ((lastKeyPollMs == 0) || (static_cast<uint32_t>(now - lastKeyPollMs) >= kKeyPollIntervalMsRun)) {
+      updateInput();
+      if (!programRunner.isRunning()) {
+        break;
+      }
+      now = millis();
+    }
+
     if ((refreshMs > 0) &&
         ((lastProgramRunDisplayRefreshMs == 0) ||
-         (static_cast<uint32_t>(millis() - lastProgramRunDisplayRefreshMs) >= refreshMs))) {
+         (static_cast<uint32_t>(now - lastProgramRunDisplayRefreshMs) >= refreshMs))) {
       break;
     }
   }
