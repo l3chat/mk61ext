@@ -713,6 +713,11 @@ void testProgramVmOpcodeInfo() {
   expectEqual(digitInfo.width, 1.0, "opcode 07 should be one byte");
   expectString(digitInfo.mnemonic, "7", "opcode 07 should decode as digit 7");
 
+  ProgramOpcodeInfo dropInfo = describeProgramOpcode(0x27);
+  expectTrue(dropInfo.valid, "opcode 27 should be valid for DROP");
+  expectEqual(dropInfo.width, 1.0, "opcode 27 should be one byte");
+  expectString(dropInfo.mnemonic, "DROP", "opcode 27 should decode as DROP");
+
   ProgramOpcodeInfo mxFInfo = describeProgramOpcode(0x4F);
   expectTrue(mxFInfo.valid, "opcode 4F should be valid after enabling register F");
   expectString(mxFInfo.mnemonic, "MX", "opcode 4F should be in the MX family");
@@ -1125,11 +1130,16 @@ void testProgramRecorderShiftedFamilies() {
              "K 4 should record ABS");
 
   expectTrue(recorder.handleKey(vm, editAddress, 'p'),
+             "K prefix should arm before DROP");
+  expectTrue(recorder.handleKey(vm, editAddress, '*'),
+             "K * should record DROP");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'p'),
              "K prefix should arm before NOP");
   expectTrue(recorder.handleKey(vm, editAddress, '0'),
              "K 0 should record NOP");
 
-  const uint8_t expected[] = {0x1C, 0x5D, 0x20, 0xDF, 0x8E, 0x31, 0x54};
+  const uint8_t expected[] = {0x1C, 0x5D, 0x20, 0xDF, 0x8E, 0x31, 0x27, 0x54};
   expectEqualU16(vm.programLength(), sizeof(expected),
                  "shifted recorder sequence should produce expected byte count");
   for (uint8_t index = 0; index < sizeof(expected); ++index) {
@@ -1255,6 +1265,26 @@ void testProgramRunnerLinearExecution() {
   expectFalse(runner.hasError(), "linear program should finish without runner errors");
   expectEqualByte(runner.runAddress(), 5, "HALT should leave run address after the halt step");
   expectEqual(calculator.stack().x, 3.0, "1 ENTER 2 + should leave 3 in X");
+}
+
+void testProgramRunnerDropExecution() {
+  ProgramVm vm;
+  const uint8_t program[] = {0x01, 0x0E, 0x02, 0x0E, 0x03, 0x0E, 0x04, 0x27, 0x50};
+  expectTrue(vm.loadProgram(program, sizeof(program)),
+             "loading DROP execution program should succeed");
+
+  ProgramRunner runner;
+  RpnCalculator calculator;
+
+  expectTrue(runner.start(vm), "runner should start for DROP execution");
+  runProgramUntilStop(runner, vm, calculator, 32, "DROP execution program should halt");
+
+  const CalculatorStack stack = calculator.stack();
+  expectFalse(runner.hasError(), "DROP execution should not set runner error");
+  expectEqual(stack.x, 3.0, "DROP opcode should move Y into X");
+  expectEqual(stack.y, 2.0, "DROP opcode should move Z into Y");
+  expectEqual(stack.z, 1.0, "DROP opcode should move T into Z");
+  expectEqual(stack.t, 1.0, "DROP opcode should keep T duplicated");
 }
 
 void testProgramRunnerSingleStepExecution() {
@@ -2025,6 +2055,7 @@ int main() {
   testProgramRecorderShiftedFamilies();
   testProgramRecorderErrors();
   testProgramRunnerLinearExecution();
+  testProgramRunnerDropExecution();
   testProgramRunnerSingleStepExecution();
   testProgramRunnerResumeAfterSingleStepKeepsProgramEntry();
   testProgramRunnerSingleStepCommitsInitialEntry();

@@ -50,7 +50,7 @@ constexpr LowOpcodeEntry kLowOpcodeTable[0x40] = {
     {"X^Y", true},      // 24
     {"RDOWN", true},    // 25
     {"H.M->H", true},   // 26
-    {"INVALID", false}, // 27
+    {"DROP", true},     // 27
     {"INVALID", false}, // 28
     {"INVALID", false}, // 29
     {"H.M.S->H", true}, // 2A

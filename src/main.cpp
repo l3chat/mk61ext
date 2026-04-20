@@ -1380,6 +1380,8 @@ void updateInput() {
   lastKeyPollMs = now;
 
   const bool keyActivity = keypad.getKeys();
+  std::array<char, kRowCount * kColumnCount> pressedKeys{};
+  size_t pressedKeyCount = 0;
 
   for (byte index = 0; index < keypad.numKeys(); index++) {
     const Key &key = keypad.key[index];
@@ -1394,15 +1396,33 @@ void updateInput() {
       keypadDiagnostics.hasEvent = true;
       keypadDiagnostics.lastEventMillis = millis();
 
-      if (key.kstate == PRESSED) {
-        const bool wasSleeping = displaySleeping;
-        noteUserActivity();
-        if (wasSleeping) {
-          continue;
-        }
-
-        handlePressedKey(key.kchar);
+      if ((key.kstate == PRESSED) && (pressedKeyCount < pressedKeys.size())) {
+        pressedKeys[pressedKeyCount++] = key.kchar;
       }
+    }
+  }
+
+  if (pressedKeyCount == 0) {
+    return;
+  }
+
+  const bool wasSleeping = displaySleeping;
+  noteUserActivity();
+  if (wasSleeping) {
+    return;
+  }
+
+  for (size_t index = 0; index < pressedKeyCount; ++index) {
+    const char key = pressedKeys[index];
+    if ((key == 'k') || (key == 'p')) {
+      handlePressedKey(key);
+    }
+  }
+
+  for (size_t index = 0; index < pressedKeyCount; ++index) {
+    const char key = pressedKeys[index];
+    if ((key != 'k') && (key != 'p')) {
+      handlePressedKey(key);
     }
   }
 }

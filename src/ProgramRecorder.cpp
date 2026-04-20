@@ -524,6 +524,10 @@ ProgramRecorder::CommandSpec ProgramRecorder::shiftedCommandForKey(PrefixState p
           command.kind = CommandSpec::Kind::Immediate;
           command.opcode = 0x26;
           return command;
+        case '*':
+          command.kind = CommandSpec::Kind::Immediate;
+          command.opcode = 0x27;
+          return command;
         case '3':
           command.kind = CommandSpec::Kind::Immediate;
           command.opcode = 0x30;

@@ -427,7 +427,7 @@ The goal here is:
 | `24` | `x^y` | original match |
 | `25` | `Rdown` | original match |
 | `26` | `H.M->H` | original match |
-| `27` | `INVALID` | keep original undefined feel, but define behavior |
+| `27` | `DROP` | mk61ext practical extension: drop stack (`Y->X`, `Z->Y`, `T->Z`) |
 | `28` | `INVALID` | keep original undefined feel, but define behavior |
 | `29` | `INVALID` | keep original undefined feel, but define behavior |
 | `2A` | `H.M.S->H` | original match |

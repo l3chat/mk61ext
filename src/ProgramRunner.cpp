@@ -84,6 +84,8 @@ CalculatorAction calculatorActionForOpcode(uint8_t opcode) {
       return CalculatorAction::RollDown;
     case 0x26:
       return CalculatorAction::HourMinuteToHour;
+    case 0x27:
+      return CalculatorAction::Drop;
     case 0x2A:
       return CalculatorAction::HourMinuteSecondToHour;
     case 0x30:
