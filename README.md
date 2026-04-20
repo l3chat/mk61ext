@@ -93,6 +93,8 @@ See [docs/key-assignments.md](docs/key-assignments.md) for the longer-term key-a
 
 See [docs/program-examples.md](docs/program-examples.md) for small hand-entered example programs that exercise the current program recorder and runner.
 
+See [docs/project-memory.md](docs/project-memory.md) for tracked long-lived project decisions and conventions.
+
 ## EEPROM
 
 The firmware expects an AT24C256C-compatible EEPROM on Pico `GPIO 14`/`GPIO 15` at I2C address `0x50`. The exact pin wiring is documented in [docs/manual-test.md](docs/manual-test.md). EEPROM addresses `0x0000`-`0x00ff` are reserved for settings, and `0x0100`-`0x01ff` are reserved for the current 256-byte program image. The current build stages brightness, backlight timeout, sleep timeout, angle mode (`RAD` / `GRD` / `DEG`), stack-label visibility, and CPU frequency in a dedicated settings screen. The timeout list now includes `OFF`, `5 s`, `15 s`, `30 s`, `1 min`, `2 min`, `5 min`, and `15 min`, and those idle timeouts are applied only while the unit is running on battery power. The current CPU-frequency choices are `12 MHz`, `24 MHz`, `48 MHz`, `96 MHz`, and `125 MHz`. `e` saves the staged values and `f` cancels them, and the saved settings survive a reboot. Program save/restore is explicit: `g` saves the current program image to EEPROM, and `h` restores the saved image on demand.
