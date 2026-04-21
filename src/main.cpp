@@ -145,11 +145,10 @@ constexpr int kStackFirstY = 10;
 constexpr int kStackRowHeight = 14;
 constexpr int kStackValueMaxPrecision = 15;
 constexpr int kStackValueMinGap = 4;
-constexpr int kHelpTitleY = 10;
-constexpr int kHelpBodyY = 18;
+constexpr int kHelpBodyY = 8;
 constexpr int kHelpLineHeight = 7;
-constexpr uint8_t kHelpBodyLineCount = 6;
-constexpr int kHelpTextWidth = 126;
+constexpr uint8_t kHelpBodyLineCount = 8;
+constexpr int kHelpTextWidth = 128;
 constexpr int kProgramListFirstY = 10;
 constexpr int kProgramListRowHeight = 9;
 constexpr uint8_t kProgramListVisibleRows = 6;
@@ -1676,28 +1675,19 @@ void formatStatusRightText(char *buffer, size_t bufferSize) {
 void drawStatusBar() {
   char leftBuffer[32];
   char rightBuffer[18];
+  rightBuffer[0] = '\0';
   const unsigned runAddress = static_cast<unsigned>(programRunner.runAddress());
 
   if (settingsState.active) {
     snprintf(leftBuffer, sizeof(leftBuffer), "SET");
     snprintf(rightBuffer, sizeof(rightBuffer), "e OK f ESC");
   } else if (helpState.enabled) {
-    const char *prefixName = activeCalculatorPrefixName();
-    if (prefixName[0] != '\0') {
-      snprintf(leftBuffer,
-               sizeof(leftBuffer),
-               "PC%02X %s HELP %s",
-               runAddress,
-               angleModeShortName(calculator.angleMode()),
-               prefixName);
+    if (helpState.hasSelection) {
+      const char *label = calculatorKeyHelpLabel(helpState.key, helpState.prefix);
+      snprintf(leftBuffer, sizeof(leftBuffer), "HELP: %s", label);
     } else {
-      snprintf(leftBuffer,
-               sizeof(leftBuffer),
-               "PC%02X %s HELP",
-               runAddress,
-               angleModeShortName(calculator.angleMode()));
+      snprintf(leftBuffer, sizeof(leftBuffer), "HELP");
     }
-    formatStatusRightText(rightBuffer, sizeof(rightBuffer));
   } else if (programMode) {
     const char *recorderErrorShort = programRecorderErrorShortName(programRecorder.error());
     const char *recorderPrefix = programRecorder.activePrefixName();
@@ -1854,21 +1844,64 @@ void drawWrappedText(int x,
   }
 }
 
-void formatHelpTitle(char *buffer, size_t bufferSize) {
-  if (!helpState.hasSelection) {
-    snprintf(buffer, bufferSize, "Help mode");
+void drawCharacterWrappedText(int x,
+                              int y,
+                              const char *text,
+                              int maxPixelWidth,
+                              uint8_t maxLines,
+                              int lineHeight) {
+  if (text == nullptr) {
     return;
   }
 
-  const char *label = calculatorKeyHelpLabel(helpState.key, helpState.prefix);
-  const char *prefixName = (helpState.prefix == CalculatorPrefix::F)
-                               ? "F"
-                               : (helpState.prefix == CalculatorPrefix::K) ? "K" : "";
+  char lineBuffer[64];
+  size_t position = 0;
 
-  if (prefixName[0] != '\0') {
-    snprintf(buffer, bufferSize, "%s %c: %s", prefixName, helpState.key, label);
-  } else {
-    snprintf(buffer, bufferSize, "%c: %s", helpState.key, label);
+  for (uint8_t line = 0; line < maxLines; ++line) {
+    if (text[position] == '\0') {
+      return;
+    }
+
+    if (text[position] == '\n') {
+      ++position;
+      continue;
+    }
+
+    const size_t lineStart = position;
+    size_t lineEnd = lineStart;
+
+    while ((text[position] != '\0') && (text[position] != '\n')) {
+      const size_t nextLength = (position - lineStart) + 1;
+      if (nextLength >= sizeof(lineBuffer)) {
+        break;
+      }
+
+      std::memcpy(lineBuffer, text + lineStart, nextLength);
+      lineBuffer[nextLength] = '\0';
+      if (display.getStrWidth(lineBuffer) > maxPixelWidth) {
+        break;
+      }
+
+      lineEnd = position + 1;
+      ++position;
+    }
+
+    if (text[position] == '\n') {
+      lineEnd = position;
+      ++position;
+    } else if (lineEnd == lineStart) {
+      lineEnd = lineStart + 1;
+      position = lineEnd;
+    }
+
+    size_t lineLength = lineEnd - lineStart;
+    if (lineLength >= sizeof(lineBuffer)) {
+      lineLength = sizeof(lineBuffer) - 1;
+    }
+
+    std::memcpy(lineBuffer, text + lineStart, lineLength);
+    lineBuffer[lineLength] = '\0';
+    display.drawStr(x, y + (line * lineHeight), lineBuffer);
   }
 }
 
@@ -1881,16 +1914,9 @@ const char *currentHelpDescription() {
 }
 
 void drawHelpScreen() {
-  char titleBuffer[32];
-
   drawStatusBar();
-  formatHelpTitle(titleBuffer, sizeof(titleBuffer));
-
   display.setFont(u8g2_font_5x7_mr);
-  display.drawStr(0, kHelpTitleY, titleBuffer);
-
-  display.setFont(u8g2_font_5x7_mr);
-  drawWrappedText(
+  drawCharacterWrappedText(
       0, kHelpBodyY, currentHelpDescription(), kHelpTextWidth, kHelpBodyLineCount, kHelpLineHeight);
 }
 
