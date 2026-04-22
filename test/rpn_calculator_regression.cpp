@@ -1089,6 +1089,66 @@ void testProgramRecorderRegisterAndAddressOperands() {
   expectEqualByte(editAddress, 6, "cursor should end at append position after commits");
 }
 
+void testProgramRecorderPendingPreviewFormatting() {
+  ProgramVm vm;
+  ProgramRecorder recorder;
+  uint8_t editAddress = 0;
+  char bytesBuffer[16];
+  char decodedBuffer[32];
+
+  expectFalse(recorder.formatPendingPreview(bytesBuffer,
+                                            sizeof(bytesBuffer),
+                                            decodedBuffer,
+                                            sizeof(decodedBuffer)),
+              "pending preview should be unavailable with no pending operand");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 'r'),
+             "XM should arm register-operand entry for preview formatting");
+  expectTrue(recorder.formatPendingPreview(bytesBuffer,
+                                           sizeof(bytesBuffer),
+                                           decodedBuffer,
+                                           sizeof(decodedBuffer)),
+             "pending preview should be available for XM register entry");
+  expectString(bytesBuffer, "6_", "XM pending preview bytes should show the missing register nibble");
+  expectString(decodedBuffer, "XM _", "XM pending preview text should show placeholder register");
+
+  expectTrue(recorder.handleKey(vm, editAddress, '4'),
+             "XM register commit should succeed in preview formatting test");
+  expectFalse(recorder.formatPendingPreview(bytesBuffer,
+                                            sizeof(bytesBuffer),
+                                            decodedBuffer,
+                                            sizeof(decodedBuffer)),
+              "pending preview should clear after XM register commit");
+
+  expectTrue(recorder.handleKey(vm, editAddress, 't'),
+             "GSB should arm address entry for preview formatting");
+  expectTrue(recorder.formatPendingPreview(bytesBuffer,
+                                           sizeof(bytesBuffer),
+                                           decodedBuffer,
+                                           sizeof(decodedBuffer)),
+             "pending preview should be available for GSB high nibble");
+  expectString(bytesBuffer, "53 __", "GSB preview bytes should show both address nibbles as pending");
+  expectString(decodedBuffer, "GSB __", "GSB preview text should show missing address operand");
+
+  expectTrue(recorder.handleKey(vm, editAddress, '1'),
+             "GSB high nibble should accept 1 in preview formatting test");
+  expectTrue(recorder.formatPendingPreview(bytesBuffer,
+                                           sizeof(bytesBuffer),
+                                           decodedBuffer,
+                                           sizeof(decodedBuffer)),
+             "pending preview should remain available for GSB low nibble");
+  expectString(bytesBuffer, "53 1_", "GSB preview bytes should show committed high nibble");
+  expectString(decodedBuffer, "GSB 1_", "GSB preview text should show pending low nibble");
+
+  expectTrue(recorder.handleKey(vm, editAddress, '2'),
+             "GSB low nibble commit should succeed in preview formatting test");
+  expectFalse(recorder.formatPendingPreview(bytesBuffer,
+                                            sizeof(bytesBuffer),
+                                            decodedBuffer,
+                                            sizeof(decodedBuffer)),
+              "pending preview should clear after GSB address commit");
+}
+
 void testProgramRecorderShiftedFamilies() {
   ProgramVm vm;
   ProgramRecorder recorder;
@@ -2052,6 +2112,7 @@ int main() {
   testProgramRecorderInsertMode();
   testProgramRecorderInsertModeRelocatesDirectTargets();
   testProgramRecorderRegisterAndAddressOperands();
+  testProgramRecorderPendingPreviewFormatting();
   testProgramRecorderShiftedFamilies();
   testProgramRecorderErrors();
   testProgramRunnerLinearExecution();

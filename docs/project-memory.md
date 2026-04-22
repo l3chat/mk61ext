@@ -24,6 +24,18 @@ This file is the tracked, low-noise project memory for durable decisions and con
 
 ## Recent Durable Changes
 
+### 2026-04-22
+
+- Program-mode pending input is now surfaced directly in both places:
+  - listing cursor row shows recorder pending preview (`GSB __`, `GSB 1_`, etc.),
+  - status line shows unfinished command text (`IN GSB ?`, `IN XM ?`) instead of generic `PND`.
+- Program-mode status layout was simplified:
+  - removed `Lxx` length from the status-left payload,
+  - status-left now favors cursor/edit-mode plus unfinished/last-command context.
+- Power visibility is now explicit in program mode status-right:
+  - voltage remains visible,
+  - when running on battery, an estimated battery percentage is also shown (`V + %`).
+
 ### 2026-04-21
 
 - Added full program-mode `DROP` support end-to-end:

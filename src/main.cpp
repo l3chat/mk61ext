@@ -658,6 +658,37 @@ void formatSupplyVoltage(char *buffer, size_t bufferSize) {
   snprintf(buffer, bufferSize, "%.2fV", static_cast<double>(supplyVoltage));
 }
 
+int estimateBatteryPercentage() {
+  if (!std::isfinite(supplyVoltage)) {
+    return -1;
+  }
+
+  constexpr float kBatteryEmptyVolts = 3.30f;
+  constexpr float kBatteryFullVolts = 4.20f;
+  float normalized = (supplyVoltage - kBatteryEmptyVolts) / (kBatteryFullVolts - kBatteryEmptyVolts);
+  if (normalized < 0.0f) {
+    normalized = 0.0f;
+  } else if (normalized > 1.0f) {
+    normalized = 1.0f;
+  }
+
+  return static_cast<int>((normalized * 100.0f) + 0.5f);
+}
+
+void formatPowerStatus(char *buffer, size_t bufferSize) {
+  formatSupplyVoltage(buffer, bufferSize);
+  if (!runningOnBattery) {
+    return;
+  }
+
+  const int batteryPercentage = estimateBatteryPercentage();
+  if (batteryPercentage < 0) {
+    return;
+  }
+
+  std::snprintf(buffer, bufferSize, "%.2fV %d%%", static_cast<double>(supplyVoltage), batteryPercentage);
+}
+
 void updatePowerSourceState() {
   if (!std::isfinite(supplyVoltage)) {
     return;
@@ -1659,6 +1690,75 @@ bool formatCommandProgress(char *buffer, size_t bufferSize) {
   return false;
 }
 
+bool formatProgramPendingInput(char *buffer, size_t bufferSize) {
+  char pendingBytes[16];
+  char pendingDecoded[32];
+  if (!programRecorder.formatPendingPreview(
+          pendingBytes, sizeof(pendingBytes), pendingDecoded, sizeof(pendingDecoded))) {
+    return false;
+  }
+
+  const char *separator = std::strchr(pendingDecoded, ' ');
+  if (separator == nullptr) {
+    char shortDecoded[9];
+    std::snprintf(shortDecoded, sizeof(shortDecoded), "%.8s", pendingDecoded);
+    std::snprintf(buffer, bufferSize, "IN %s ?", shortDecoded);
+    return true;
+  }
+
+  char mnemonic[9];
+  const size_t mnemonicLength = static_cast<size_t>(separator - pendingDecoded);
+  const size_t copyLength = (mnemonicLength < (sizeof(mnemonic) - 1)) ? mnemonicLength : (sizeof(mnemonic) - 1);
+  std::memcpy(mnemonic, pendingDecoded, copyLength);
+  mnemonic[copyLength] = '\0';
+
+  const char *operand = separator + 1;
+  if (operand[0] == '\0') {
+    std::snprintf(buffer, bufferSize, "IN %s ?", mnemonic);
+    return true;
+  }
+
+  char operandBuffer[5];
+  size_t operandIndex = 0;
+  for (size_t sourceIndex = 0;
+       (operand[sourceIndex] != '\0') && (operandIndex < (sizeof(operandBuffer) - 1));
+       ++sourceIndex) {
+    char token = operand[sourceIndex];
+    if (token == '_') {
+      token = '?';
+    }
+    if (token == ' ') {
+      continue;
+    }
+    operandBuffer[operandIndex++] = token;
+  }
+  operandBuffer[operandIndex] = '\0';
+
+  if ((std::strcmp(operandBuffer, "??") == 0) || (std::strcmp(operandBuffer, "?") == 0)) {
+    std::snprintf(buffer, bufferSize, "IN %s ?", mnemonic);
+  } else {
+    std::snprintf(buffer, bufferSize, "IN %s %s", mnemonic, operandBuffer);
+  }
+
+  return true;
+}
+
+bool formatProgramLastCommand(char *buffer, size_t bufferSize) {
+  uint8_t previousAddress = 0;
+  if (!programVm.previousStepAddress(programEditAddress, previousAddress)) {
+    return false;
+  }
+
+  const ProgramVm::DecodedStep previousStep = programVm.decodeAt(previousAddress);
+  char decodedBuffer[24];
+  if (!programVm.formatStep(previousStep, decodedBuffer, sizeof(decodedBuffer))) {
+    return false;
+  }
+
+  std::snprintf(buffer, bufferSize, "CMD %.12s", decodedBuffer);
+  return true;
+}
+
 void formatStatusRightText(char *buffer, size_t bufferSize) {
   if (formatCommandProgress(buffer, bufferSize)) {
     return;
@@ -1669,7 +1769,7 @@ void formatStatusRightText(char *buffer, size_t bufferSize) {
     return;
   }
 
-  formatSupplyVoltage(buffer, bufferSize);
+  formatPowerStatus(buffer, bufferSize);
 }
 
 void drawStatusBar() {
@@ -1693,34 +1793,24 @@ void drawStatusBar() {
     const char *recorderPrefix = programRecorder.activePrefixName();
     const char *editModeShort = programRecorder.insertModeEnabled() ? "INS" : "OVR";
     const unsigned editAddress = static_cast<unsigned>(programEditAddress);
-    const unsigned programLength = static_cast<unsigned>(programVm.programLength());
+    char programStateBuffer[24];
+    programStateBuffer[0] = '\0';
     if (recorderErrorShort[0] != '\0') {
-      snprintf(leftBuffer,
-               sizeof(leftBuffer),
-               "P%02X L%02X %s E:%s",
-               editAddress,
-               programLength,
-               editModeShort,
-               recorderErrorShort);
-    } else if (programRecorder.hasPendingOperand()) {
-      snprintf(leftBuffer,
-               sizeof(leftBuffer),
-               "P%02X L%02X %s PND",
-               editAddress,
-               programLength,
-               editModeShort);
+      snprintf(programStateBuffer, sizeof(programStateBuffer), "E:%s", recorderErrorShort);
+    } else if (formatProgramPendingInput(programStateBuffer, sizeof(programStateBuffer))) {
+      // Program state already formatted as an unfinished command string.
     } else if (recorderPrefix[0] != '\0') {
-      snprintf(leftBuffer,
-               sizeof(leftBuffer),
-               "P%02X L%02X %s %s",
-               editAddress,
-               programLength,
-               editModeShort,
-               recorderPrefix);
-    } else {
-      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X L%02X %s", editAddress, programLength, editModeShort);
+      snprintf(programStateBuffer, sizeof(programStateBuffer), "IN %s ?", recorderPrefix);
+    } else if (!formatProgramLastCommand(programStateBuffer, sizeof(programStateBuffer))) {
+      programStateBuffer[0] = '\0';
     }
-    formatStatusRightText(rightBuffer, sizeof(rightBuffer));
+
+    if (programStateBuffer[0] != '\0') {
+      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X %s %s", editAddress, editModeShort, programStateBuffer);
+    } else {
+      snprintf(leftBuffer, sizeof(leftBuffer), "P%02X %s", editAddress, editModeShort);
+    }
+    formatPowerStatus(rightBuffer, sizeof(rightBuffer));
   } else if (programRunner.hasError()) {
     snprintf(leftBuffer,
              sizeof(leftBuffer),
@@ -2020,12 +2110,30 @@ void drawProgramScreen() {
     const bool isCursorLine = lineAddress == static_cast<uint16_t>(programEditAddress);
 
     char listingBuffer[64];
-    if (lineAddress == programLength) {
-      snprintf(listingBuffer, sizeof(listingBuffer), "%02X: --      END", static_cast<unsigned>(lineAddress));
-    } else if (!programVm.formatListingLine(static_cast<uint8_t>(lineAddress),
-                                            listingBuffer,
-                                            sizeof(listingBuffer))) {
-      snprintf(listingBuffer, sizeof(listingBuffer), "%02X: --      END", static_cast<unsigned>(lineAddress));
+    bool hasPendingPreviewLine = false;
+    if (isCursorLine) {
+      char pendingBytes[16];
+      char pendingDecoded[32];
+      if (programRecorder.formatPendingPreview(
+              pendingBytes, sizeof(pendingBytes), pendingDecoded, sizeof(pendingDecoded))) {
+        snprintf(listingBuffer,
+                 sizeof(listingBuffer),
+                 "%02X: %-8s%s",
+                 static_cast<unsigned>(lineAddress),
+                 pendingBytes,
+                 pendingDecoded);
+        hasPendingPreviewLine = true;
+      }
+    }
+
+    if (!hasPendingPreviewLine) {
+      if (lineAddress == programLength) {
+        snprintf(listingBuffer, sizeof(listingBuffer), "%02X: --      END", static_cast<unsigned>(lineAddress));
+      } else if (!programVm.formatListingLine(static_cast<uint8_t>(lineAddress),
+                                              listingBuffer,
+                                              sizeof(listingBuffer))) {
+        snprintf(listingBuffer, sizeof(listingBuffer), "%02X: --      END", static_cast<unsigned>(lineAddress));
+      }
     }
 
     char rowBuffer[72];
