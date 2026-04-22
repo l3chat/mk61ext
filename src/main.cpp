@@ -83,9 +83,12 @@
 #include <Wire.h>
 
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+
+#include <mbed.h>
 
 #include <SparkFun_External_EEPROM.h>  // http://librarymanager/All#SparkFun_External_EEPROM
 
@@ -154,6 +157,7 @@ constexpr int kProgramListRowHeight = 9;
 constexpr uint8_t kProgramListVisibleRows = 6;
 constexpr uint16_t kKeyPollIntervalMsIdle = 2;
 constexpr uint16_t kKeyPollIntervalMsRun = 10;
+constexpr uint16_t kDisplayRefreshIntervalMsIdle = 33;
 constexpr int kSettingsFirstRowY = 10;
 constexpr int kSettingsRowHeight = 7;
 constexpr int kSettingsCursorBoxWidth = 6;
@@ -347,8 +351,12 @@ bool runningOnBattery = true;
 std::array<uint8_t, ProgramVm::kProgramCapacity> savedProgramImage{};
 uint16_t savedProgramLength = 0;
 bool savedProgramImageValid = false;
-uint32_t lastProgramRunDisplayRefreshMs = 0;
-uint32_t lastKeyPollMs = 0;
+mbed::Ticker keyPollTicker;
+mbed::Ticker displayRefreshTicker;
+volatile uint32_t keyPollTickCount = 0;
+volatile uint32_t displayRefreshTickCount = 0;
+uint16_t activeKeyPollIntervalMs = 0;
+uint16_t activeDisplayRefreshIntervalMs = 0;
 
 StoredSettings defaultStoredSettings() {
   StoredSettings settings{};
@@ -523,6 +531,75 @@ void updatePowerSourceState();
 void normalizeProgramEditAddress();
 void rememberLastCommand(const char *label);
 void rememberLastCommandForKey(char keyPressed, CalculatorPrefix prefix);
+void syncPeriodicTickers();
+
+void onKeyPollTimerInterrupt() {
+  ++keyPollTickCount;
+}
+
+void onDisplayRefreshTimerInterrupt() {
+  ++displayRefreshTickCount;
+}
+
+void configureKeyPollTicker(uint16_t intervalMs) {
+  if (intervalMs == activeKeyPollIntervalMs) {
+    return;
+  }
+
+  keyPollTicker.detach();
+  activeKeyPollIntervalMs = intervalMs;
+  if (intervalMs > 0) {
+    keyPollTicker.attach(onKeyPollTimerInterrupt, std::chrono::milliseconds(intervalMs));
+  }
+}
+
+void configureDisplayRefreshTicker(uint16_t intervalMs) {
+  if (intervalMs == activeDisplayRefreshIntervalMs) {
+    return;
+  }
+
+  displayRefreshTicker.detach();
+  activeDisplayRefreshIntervalMs = intervalMs;
+  if (intervalMs > 0) {
+    displayRefreshTicker.attach(onDisplayRefreshTimerInterrupt, std::chrono::milliseconds(intervalMs));
+  }
+}
+
+uint32_t consumeKeyPollTicks() {
+  noInterrupts();
+  const uint32_t pendingTicks = keyPollTickCount;
+  keyPollTickCount = 0;
+  interrupts();
+  return pendingTicks;
+}
+
+uint32_t consumeDisplayRefreshTicks() {
+  noInterrupts();
+  const uint32_t pendingTicks = displayRefreshTickCount;
+  displayRefreshTickCount = 0;
+  interrupts();
+  return pendingTicks;
+}
+
+bool hasPendingKeyPollTick() {
+  return keyPollTickCount != 0;
+}
+
+bool hasPendingDisplayRefreshTick() {
+  return displayRefreshTickCount != 0;
+}
+
+void syncPeriodicTickers() {
+  const uint16_t keyPollIntervalMs = programRunner.isRunning() ? kKeyPollIntervalMsRun : kKeyPollIntervalMsIdle;
+  configureKeyPollTicker(keyPollIntervalMs);
+
+  uint16_t displayRefreshIntervalMs = kDisplayRefreshIntervalMsIdle;
+  if (programRunner.isRunning()) {
+    displayRefreshIntervalMs =
+        static_cast<uint16_t>(programRunDisplayRefreshMilliseconds(programRunDisplayRefreshIndex));
+  }
+  configureDisplayRefreshTicker(displayRefreshIntervalMs);
+}
 
 void noteUserActivity() {
   lastUserActivityMs = millis();
@@ -1402,13 +1479,6 @@ void handlePressedKey(char keyPressed) {
 }
 
 void updateInput() {
-  const uint32_t now = millis();
-  const uint32_t keyPollIntervalMs = programRunner.isRunning() ? kKeyPollIntervalMsRun : kKeyPollIntervalMsIdle;
-  if ((lastKeyPollMs != 0) && ((now - lastKeyPollMs) < keyPollIntervalMs)) {
-    return;
-  }
-  lastKeyPollMs = now;
-
   const bool keyActivity = keypad.getKeys();
   std::array<char, kRowCount * kColumnCount> pressedKeys{};
   size_t pressedKeyCount = 0;
@@ -1462,7 +1532,7 @@ void updateProgramExecution() {
     return;
   }
 
-  const uint32_t refreshMs = programRunDisplayRefreshMilliseconds(programRunDisplayRefreshIndex);
+  // Keep stepping until a timer interrupt requests key processing or a display refresh.
   while (programRunner.isRunning()) {
     (void)programRunner.step(programVm, calculator);
 
@@ -1470,18 +1540,7 @@ void updateProgramExecution() {
       break;
     }
 
-    uint32_t now = millis();
-    if ((lastKeyPollMs == 0) || (static_cast<uint32_t>(now - lastKeyPollMs) >= kKeyPollIntervalMsRun)) {
-      updateInput();
-      if (!programRunner.isRunning()) {
-        break;
-      }
-      now = millis();
-    }
-
-    if ((refreshMs > 0) &&
-        ((lastProgramRunDisplayRefreshMs == 0) ||
-         (static_cast<uint32_t>(now - lastProgramRunDisplayRefreshMs) >= refreshMs))) {
+    if (hasPendingKeyPollTick() || hasPendingDisplayRefreshTick()) {
       break;
     }
   }
@@ -2176,27 +2235,29 @@ void setup() {
   display.sendBuffer();
   delay(3000);
   calculator.seedRandom(static_cast<uint32_t>(micros()) ^ 0xA5A55A5Au);
+
+  syncPeriodicTickers();
+  keyPollTickCount = 1;
+  displayRefreshTickCount = 1;
 }
 
 void loop() {
-  updateInput();
-  updateProgramExecution();
-  updateSupplyVoltage();
-  updateIdlePowerState();
-  bool shouldRefreshDisplay = true;
-  if (programRunner.isRunning()) {
-    const uint32_t now = millis();
-    const uint32_t refreshMs = programRunDisplayRefreshMilliseconds(programRunDisplayRefreshIndex);
-    if ((refreshMs > 0) && ((now - lastProgramRunDisplayRefreshMs) < refreshMs)) {
-      shouldRefreshDisplay = false;
-    } else {
-      lastProgramRunDisplayRefreshMs = now;
-    }
-  } else {
-    lastProgramRunDisplayRefreshMs = 0;
+  syncPeriodicTickers();
+
+  if (consumeKeyPollTicks() > 0) {
+    updateInput();
   }
 
-  if (shouldRefreshDisplay) {
+  updateProgramExecution();
+
+  if (consumeKeyPollTicks() > 0) {
+    updateInput();
+  }
+
+  updateSupplyVoltage();
+  updateIdlePowerState();
+
+  if (consumeDisplayRefreshTicks() > 0) {
     display.clearBuffer();
     if (settingsState.active) {
       drawSettingsScreen();

@@ -75,3 +75,58 @@ It is based on the current firmware behavior, wiring constraints, and recent har
 ### 2. Hardware power-latch path
 
 - Firmware sleep is already useful, but true hard power gating can improve battery shelf life for long storage.
+
+## New Board Bring-Up Checklist
+
+Use this sequence to reduce risk when assembling and validating the next board revision.
+
+### 1. Pre-power visual checks
+
+- Confirm no shorts between `3V3` and `GND` with a multimeter.
+- Confirm LCD pins are not mirrored/rotated at the connector.
+- Confirm EEPROM `A0/A1/A2` are tied low and `WP` is tied to `GND` (unless intentionally write-protected).
+- Confirm I2C pull-ups exist on `SDA` and `SCL`.
+- Confirm BOOTSEL and RESET access is physically reachable.
+
+### 2. First power-on checks
+
+- Power from USB only first (no battery) and confirm stable `3V3`.
+- Verify RP2040 enumerates over USB.
+- Verify BOOTSEL mode appears as a mass-storage device with label `RPI-RP2`.
+- Do not connect the LCD backlight MOSFET gate to floating logic; ensure a defined state at boot.
+
+### 3. Minimal firmware smoke test
+
+- Build: `/home/lechat/.platformio/penv/bin/platformio run`
+- Upload: `/home/lechat/.platformio/penv/bin/platformio run -t upload`
+- Expected upload fallback behavior:
+- if serial CDC is visible, `scripts/upload_uf2.sh` toggles 1200 baud and waits for `RPI-RP2`,
+- if serial is not visible, manually hold BOOTSEL while plugging USB and retry upload.
+
+### 4. Peripheral bring-up order
+
+- First: display only (draw fixed text).
+- Second: keypad scan only (print key events).
+- Third: EEPROM read/write sanity check.
+- Fourth: full firmware with power-management and settings.
+
+### 5. Failure isolation order
+
+- If upload fails with `Could not find a Pico serial port or an RPI-RP2 boot drive.`:
+- check USB cable (data-capable), USB connector soldering, and BOOTSEL switch wiring first.
+- If LCD is blank/garbled:
+- check `CS/DC/RESET` polarity and wiring before tuning firmware timing.
+- If keypad misses keys:
+- verify row/column continuity and pull behavior before touching debounce constants.
+
+## Suggested Pin Plan For Next Revision
+
+If you can rewire for native SPI, this is the preferred direction for performance and simpler firmware transport:
+
+- LCD `SCK` -> `GPIO18`
+- LCD `MOSI` -> `GPIO19`
+- LCD `CS` -> `GPIO17`
+- LCD `DC` -> `GPIO20`
+- LCD `RESET` -> `GPIO21`
+- Backlight gate -> move away from `GPIO16` to any free non-SPI GPIO
+- EEPROM `SDA/SCL` -> keep `GPIO14/GPIO15`

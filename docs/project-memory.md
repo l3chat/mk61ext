@@ -26,6 +26,13 @@ This file is the tracked, low-noise project memory for durable decisions and con
 
 ### 2026-04-22
 
+- Input and display scheduling moved from `millis()` gating to timer-interrupt-driven scheduling:
+  - `mbed::Ticker` IRQs now drive key-poll and display-refresh cadence,
+  - ISR handlers only raise pending counters,
+  - keypad scan and LCD draw/send still run in the main context for safety.
+- Hardware bring-up guidance was expanded in `docs/hardware-advices.md` with:
+  - a staged new-board checklist (pre-power, first power, smoke flash, peripheral order, fault isolation),
+  - and an explicit preferred next-revision pin plan for native SPI LCD routing.
 - Program-mode pending input is now surfaced directly in both places:
   - listing cursor row shows recorder pending preview (`GSB __`, `GSB 1_`, etc.),
   - status line shows unfinished command text (`IN GSB ?`, `IN XM ?`) instead of generic `PND`.
