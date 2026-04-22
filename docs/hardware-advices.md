@@ -6,7 +6,9 @@ It is based on the current firmware behavior, wiring constraints, and recent har
 ## Current Known-Good Baseline
 
 - MCU: Raspberry Pi Pico / RP2040.
-- LCD (ST7565): software-SPI path is currently stable with `SCK=GPIO20`, `MOSI=GPIO21`, `CS=GPIO17`, `DC=GPIO19`, `RESET=GPIO18`.
+- LCD (ST7565) historical wiring: `SCK=GPIO20`, `MOSI=GPIO21`, `CS=GPIO17`, `DC=GPIO19`, `RESET=GPIO18`.
+- LCD (ST7565) current migration firmware target: `SCK=GPIO26`, `MOSI=GPIO27`, `CS=GPIO17`, `DC=GPIO19`, `RESET=GPIO18`.
+- Legacy LCD lines `GPIO20/21` are intentionally set to high-impedance input mode in firmware.
 - Backlight control: `GPIO16` through a P-channel MOSFET.
 - EEPROM: AT24C256-compatible on `GPIO14/15` (`SDA/SCL`), I2C address `0x50`.
 
@@ -19,30 +21,52 @@ It is based on the current firmware behavior, wiring constraints, and recent har
 - This delay is not for arithmetic correctness; it is for CPU/power control and stable UI cadence in the single-loop architecture.
 - Measured key-to-result time therefore includes loop polling, keypad debounce, and display refresh time, not only the math operation itself.
 
+## Soldering Guide (Current Board, No-Cut Migration)
+
+This is the recommended procedure for your current board when you do not want to cut old LCD wires.
+
+### 1. Target pin map for this migration
+
+- LCD `SCK` -> `GPIO26`
+- LCD `MOSI` -> `GPIO27`
+- LCD `CS` -> `GPIO17` (keep existing)
+- LCD `DC` -> `GPIO19` (keep existing)
+- LCD `RESET` -> `GPIO18` (keep existing)
+- Legacy LCD wires on `GPIO20/21` stay physically connected but are disabled in firmware (high-impedance input).
+
+### 2. What to solder
+
+- Add one jumper wire from LCD `SCK` pin to Pico `GPIO26`.
+- Add one jumper wire from LCD `SI/MOSI` pin to Pico `GPIO27`.
+- Do not remove existing LCD wires from `GPIO17/18/19/20/21`.
+- Do not add any new wire to `GPIO18` or `GPIO19`.
+
+### 3. Safe sequence
+
+- Flash firmware that uses `SCK=26`, `MOSI=27`, and sets old `20/21` to input mode.
+- Power off.
+- Solder the two new jumpers (`SCK->26`, `MOSI->27`).
+- Power on and test display.
+
+### 4. Important warning
+
+- Do not connect LCD `SCK/MOSI` to `GPIO18/19` while old `DC/RESET` wiring still exists there.
+- That creates pin-role overlap (`SPI` vs `DC/RESET`) and can cause bus contention or unstable display behavior.
+
 ## High-Impact Suggestions
 
-### 1. Rewire LCD for native SPI
-
-- Recommended remap:
-- move LCD `SCK` from `GPIO20` to `GPIO18`
-- move LCD `MOSI` from `GPIO21` to `GPIO19`
-- keep LCD `CS` on `GPIO17`
-- move LCD `DC` to `GPIO20`
-- move LCD `RESET` to `GPIO21`
-- Reason: this removes the main display bottleneck from software-SPI, especially at lower CPU frequencies.
-
-### 2. Move backlight control off `GPIO16`
+### 1. Move backlight control off `GPIO16`
 
 - Reason: `GPIO16` overlaps with the default Pico SPI pin group (`18/19/16/17`) and complicates clean hardware-SPI routing.
 - Suggested target: any free GPIO outside the SPI block used for LCD.
 
-### 3. Add explicit USB/external-power sense
+### 2. Add explicit USB/external-power sense
 
 - Current behavior infers battery vs external power from `VSYS`, which is heuristic.
 - Suggested: route divided VBUS to a GPIO/ADC-safe input for deterministic source detection.
 - Reason: timeout/backlight behavior will be more robust and easier to tune.
 
-### 4. Keep robust EEPROM I2C defaults
+### 3. Keep robust EEPROM I2C defaults
 
 - Keep `A0/A1/A2` tied low (`0x50`) and `WP` tied to GND unless write-protect is needed.
 - Use pull-ups on SDA/SCL (typically `4.7k`; do not exceed `10k`).
@@ -119,14 +143,14 @@ Use this sequence to reduce risk when assembling and validating the next board r
 - If keypad misses keys:
 - verify row/column continuity and pull behavior before touching debounce constants.
 
-## Suggested Pin Plan For Next Revision
+## Suggested Pin Plan For Next Revision (Clean PCB)
 
-If you can rewire for native SPI, this is the preferred direction for performance and simpler firmware transport:
+For a clean next board revision without legacy no-cut constraints:
 
 - LCD `SCK` -> `GPIO18`
 - LCD `MOSI` -> `GPIO19`
 - LCD `CS` -> `GPIO17`
 - LCD `DC` -> `GPIO20`
 - LCD `RESET` -> `GPIO21`
-- Backlight gate -> move away from `GPIO16` to any free non-SPI GPIO
+- Backlight gate -> move away from `GPIO16` to a free non-SPI GPIO
 - EEPROM `SDA/SCL` -> keep `GPIO14/GPIO15`

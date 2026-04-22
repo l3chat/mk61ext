@@ -1,6 +1,7 @@
 #include "Mk61extDisplay.h"
 
 #include <Arduino.h>
+#include <SPI.h>
 
 #if __has_include(<hardware/clocks.h>) && __has_include(<hardware/pio.h>) && \
     __has_include(<hardware/pio_instructions.h>)
@@ -15,6 +16,108 @@
 #define MK61EXT_ENABLE_PIO_LCD_TRANSPORT 0
 
 namespace {
+
+struct HardwareSpiTransport {
+  bool initialized = false;
+  arduino::MbedSPI *bus = nullptr;
+};
+
+HardwareSpiTransport g_hardwareSpiTransport;
+
+bool ensureHardwareSpiTransportInitialized(u8x8_t *u8x8) {
+  if (g_hardwareSpiTransport.initialized) {
+    return g_hardwareSpiTransport.bus != nullptr;
+  }
+
+  g_hardwareSpiTransport.initialized = true;
+  const uint8_t clockPin = u8x8->pins[U8X8_PIN_SPI_CLOCK];
+  const uint8_t dataPin = u8x8->pins[U8X8_PIN_SPI_DATA];
+  if ((clockPin == U8X8_PIN_NONE) || (dataPin == U8X8_PIN_NONE)) {
+    return false;
+  }
+
+  g_hardwareSpiTransport.bus =
+      new arduino::MbedSPI(NC, digitalPinToPinName(dataPin), digitalPinToPinName(clockPin));
+  g_hardwareSpiTransport.bus->begin();
+  return true;
+}
+
+extern "C" uint8_t u8x8_byte_mk61ext_hw_spi_4wire(u8x8_t *u8x8,
+                                                  uint8_t msg,
+                                                  uint8_t arg_int,
+                                                  void *arg_ptr) {
+  switch (msg) {
+    case U8X8_MSG_BYTE_SEND: {
+      if (!ensureHardwareSpiTransportInitialized(u8x8)) {
+        return u8x8_byte_arduino_4wire_sw_spi(u8x8, msg, arg_int, arg_ptr);
+      }
+
+      const uint8_t *data = static_cast<const uint8_t *>(arg_ptr);
+      while (arg_int > 0) {
+        g_hardwareSpiTransport.bus->transfer(*data);
+        ++data;
+        --arg_int;
+      }
+      break;
+    }
+
+    case U8X8_MSG_BYTE_INIT:
+      if (u8x8->bus_clock == 0) {
+        u8x8->bus_clock = u8x8->display_info->sck_clock_hz;
+      }
+      u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
+      if (!ensureHardwareSpiTransportInitialized(u8x8)) {
+        return u8x8_byte_arduino_4wire_sw_spi(u8x8, msg, arg_int, arg_ptr);
+      }
+      break;
+
+    case U8X8_MSG_BYTE_SET_DC:
+      u8x8_gpio_SetDC(u8x8, arg_int);
+      break;
+
+    case U8X8_MSG_BYTE_START_TRANSFER: {
+      uint8_t internalSpiMode = SPI_MODE0;
+      switch (u8x8->display_info->spi_mode) {
+        case 1:
+          internalSpiMode = SPI_MODE1;
+          break;
+        case 2:
+          internalSpiMode = SPI_MODE2;
+          break;
+        case 3:
+          internalSpiMode = SPI_MODE3;
+          break;
+        default:
+          internalSpiMode = SPI_MODE0;
+          break;
+      }
+
+      if (!ensureHardwareSpiTransportInitialized(u8x8)) {
+        return u8x8_byte_arduino_4wire_sw_spi(u8x8, msg, arg_int, arg_ptr);
+      }
+      g_hardwareSpiTransport.bus->beginTransaction(
+          SPISettings(u8x8->bus_clock, MSBFIRST, internalSpiMode));
+      u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_enable_level);
+      u8x8->gpio_and_delay_cb(
+          u8x8, U8X8_MSG_DELAY_NANO, u8x8->display_info->post_chip_enable_wait_ns, nullptr);
+      break;
+    }
+
+    case U8X8_MSG_BYTE_END_TRANSFER:
+      u8x8->gpio_and_delay_cb(
+          u8x8, U8X8_MSG_DELAY_NANO, u8x8->display_info->pre_chip_disable_wait_ns, nullptr);
+      u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
+      if (g_hardwareSpiTransport.bus != nullptr) {
+        g_hardwareSpiTransport.bus->endTransaction();
+      }
+      break;
+
+    default:
+      return 0;
+  }
+
+  return 1;
+}
 
 #if MK61EXT_HAS_PIO_LCD_TRANSPORT
 
@@ -254,8 +357,9 @@ Mk61extDisplay::Mk61extDisplay(const u8g2_cb_t *rotation,
     : U8G2() {
 #if MK61EXT_HAS_PIO_LCD_TRANSPORT && MK61EXT_ENABLE_PIO_LCD_TRANSPORT
   u8g2_Setup_st7565_erc12864_f(&u8g2, rotation, u8x8_byte_mk61ext_pio_4wire, u8x8_gpio_and_delay_arduino);
-#else
-  u8g2_Setup_st7565_erc12864_f(&u8g2, rotation, u8x8_byte_arduino_4wire_sw_spi, u8x8_gpio_and_delay_arduino);
-#endif
   u8x8_SetPin_4Wire_SW_SPI(getU8x8(), clock, data, cs, dc, reset);
+#else
+  u8g2_Setup_st7565_erc12864_f(&u8g2, rotation, u8x8_byte_mk61ext_hw_spi_4wire, u8x8_gpio_and_delay_arduino);
+  u8x8_SetPin_4Wire_SW_SPI(getU8x8(), clock, data, cs, dc, reset);
+#endif
 }

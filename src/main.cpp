@@ -18,11 +18,11 @@
  * http://arduino.ru/forum/apparatnye-voprosy/podklyuchenie-displeya-gmg12864-06d-na-st7565r
  * https://www.sparkfun.com/datasheets/LCD/GDM12864H.pdf
  *
- * 1 CS  -                            - 17 //17
- * 2 RSE - reset RST                  - 18 //20
- * 3 RS  - Data/Command select DC A0  - 19 //21
- * 4 SCL -                            - 20 //18
- * 5 SI  - MOSI                       - 21 //19
+ * 1 CS  -                            - 17
+ * 2 RSE - reset RST                  - 18
+ * 3 RS  - Data/Command select DC A0  - 19
+ * 4 SCL - SPI SCK                    - 26
+ * 5 SI  - SPI MOSI                   - 27
  * 6 VDD - 3v3
  * 7 VSS - GND
  * 8 A   - (3v3)                      - D-pin of the P-channel MOSFET
@@ -127,11 +127,13 @@ char kKeyMap[kRowCount][kColumnCount] = {
 byte kRowPins[kRowCount] = {7, 6, 5, 4, 3, 2, 1, 0};  // connect to the row pinouts of the keypad
 byte kColumnPins[kColumnCount] = {8, 9, 10, 11, 12};  // connect to the column pinouts of the keypad
 
-constexpr uint8_t kDisplayClockPin = 20;
-constexpr uint8_t kDisplayDataPin = 21;
+constexpr uint8_t kDisplayClockPin = 26;
+constexpr uint8_t kDisplayDataPin = 27;
 constexpr uint8_t kDisplayChipSelectPin = 17;
 constexpr uint8_t kDisplayDataCommandPin = 19;
 constexpr uint8_t kDisplayResetPin = 18;
+constexpr uint8_t kLegacyDisplayClockPin = 20;
+constexpr uint8_t kLegacyDisplayDataPin = 21;
 constexpr uint8_t kBacklightPin = 16;
 constexpr uint8_t kSupplySensePin = A3;
 
@@ -1675,6 +1677,10 @@ void setupDisplay() {
   brightness = 0;
   pinMode(kBacklightPin, OUTPUT);
   applyBrightness();
+
+  // Keep legacy software-SPI pins electrically quiet when the LCD is rewired to hardware SPI.
+  pinMode(kLegacyDisplayClockPin, INPUT);
+  pinMode(kLegacyDisplayDataPin, INPUT);
 
   display.begin();
   display.setPowerSave(0);
