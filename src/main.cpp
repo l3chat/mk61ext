@@ -143,6 +143,8 @@ constexpr uint16_t kDisplayContrast = 20;
 constexpr uint16_t kLoopDelayMs = 2;
 constexpr uint16_t kSleepLoopDelayMs = 100;
 constexpr int kDisplayWidth = 128;
+constexpr int kDisplayHeight = 64;
+constexpr size_t kDisplayBufferBytes = (kDisplayWidth * kDisplayHeight) / 8;
 constexpr int kStatusBarHeight = 8;
 constexpr int kStackFirstY = 10;
 constexpr int kStackRowHeight = 14;
@@ -177,6 +179,7 @@ constexpr uint16_t kSupplyAdcMaxReading = (1u << kSupplyAdcResolutionBits) - 1u;
 constexpr uint8_t kSupplySampleCount = 8;
 constexpr uint32_t kSupplyRefreshMs = 10000;
 constexpr uint32_t kRecentEventDisplayMs = 1500;
+constexpr uint32_t kRunDurationDisplayMs = 10000;
 constexpr float kSupplyAdcReferenceVolts = 3.3f;
 constexpr float kSupplySenseDividerScale = 3.0f;
 constexpr float kExternalPowerDetectOnVolts = 4.35f;
@@ -255,6 +258,14 @@ struct HelpState {
 struct CommandStatus {
   bool hasLast = false;
   char last[16] = {};
+};
+
+struct ProgramRunTimingStatus {
+  bool active = false;
+  uint32_t startMs = 0;
+  bool hasLastDuration = false;
+  uint32_t lastDurationMs = 0;
+  uint32_t finishedAtMs = 0;
 };
 
 struct StoredSettings {
@@ -341,6 +352,7 @@ uint32_t lastUserActivityMs = 0;
 KeypadDiagnostics keypadDiagnostics;
 HelpState helpState;
 CommandStatus commandStatus;
+ProgramRunTimingStatus runTimingStatus;
 SettingsState settingsState;
 PendingRegisterOperation pendingRegisterOperation = PendingRegisterOperation::None;
 bool programMode = false;
@@ -357,6 +369,8 @@ volatile uint32_t keyPollTickCount = 0;
 volatile uint32_t displayRefreshTickCount = 0;
 uint16_t activeKeyPollIntervalMs = 0;
 uint16_t activeDisplayRefreshIntervalMs = 0;
+std::array<uint8_t, kDisplayBufferBytes> previousDisplayFrame{};
+bool hasPreviousDisplayFrame = false;
 
 StoredSettings defaultStoredSettings() {
   StoredSettings settings{};
@@ -532,6 +546,8 @@ void normalizeProgramEditAddress();
 void rememberLastCommand(const char *label);
 void rememberLastCommandForKey(char keyPressed, CalculatorPrefix prefix);
 void syncPeriodicTickers();
+void beginProgramRunTiming();
+void finishProgramRunTiming();
 
 void onKeyPollTimerInterrupt() {
   ++keyPollTickCount;
@@ -599,6 +615,23 @@ void syncPeriodicTickers() {
         static_cast<uint16_t>(programRunDisplayRefreshMilliseconds(programRunDisplayRefreshIndex));
   }
   configureDisplayRefreshTicker(displayRefreshIntervalMs);
+}
+
+void beginProgramRunTiming() {
+  runTimingStatus.active = true;
+  runTimingStatus.startMs = millis();
+}
+
+void finishProgramRunTiming() {
+  if (!runTimingStatus.active) {
+    return;
+  }
+
+  const uint32_t now = millis();
+  runTimingStatus.active = false;
+  runTimingStatus.hasLastDuration = true;
+  runTimingStatus.lastDurationMs = now - runTimingStatus.startMs;
+  runTimingStatus.finishedAtMs = now;
 }
 
 void noteUserActivity() {
@@ -1396,6 +1429,7 @@ void handlePressedKey(char keyPressed) {
   if (programRunner.isRunning()) {
     if (runControlContext && (keyPressed == 'o')) {
       programRunner.stop();
+      finishProgramRunTiming();
       rememberLastCommand("STOP");
     }
     return;
@@ -1432,6 +1466,7 @@ void handlePressedKey(char keyPressed) {
   if (runControlContext && (keyPressed == 'o')) {
     (void)programRunner.start(programVm, calculator);
     if (programRunner.isRunning()) {
+      beginProgramRunTiming();
       rememberLastCommand("RUN");
     }
     return;
@@ -1543,6 +1578,10 @@ void updateProgramExecution() {
     if (hasPendingKeyPollTick() || hasPendingDisplayRefreshTick()) {
       break;
     }
+  }
+
+  if (!programRunner.isRunning()) {
+    finishProgramRunTiming();
   }
 
   lastUserActivityMs = millis();
@@ -1818,7 +1857,40 @@ bool formatProgramLastCommand(char *buffer, size_t bufferSize) {
   return true;
 }
 
+bool formatRecentRunDuration(char *buffer, size_t bufferSize) {
+  if (runTimingStatus.active || !runTimingStatus.hasLastDuration) {
+    return false;
+  }
+
+  const uint32_t now = millis();
+  if ((now - runTimingStatus.finishedAtMs) > kRunDurationDisplayMs) {
+    return false;
+  }
+
+  const unsigned long elapsedMs = static_cast<unsigned long>(runTimingStatus.lastDurationMs);
+  if (elapsedMs < 1000ul) {
+    std::snprintf(buffer, bufferSize, "RUN %lums", elapsedMs);
+    return true;
+  }
+
+  if (elapsedMs < 60000ul) {
+    const unsigned long seconds = elapsedMs / 1000ul;
+    const unsigned long centiseconds = (elapsedMs % 1000ul) / 10ul;
+    std::snprintf(buffer, bufferSize, "RUN %lu.%02lus", seconds, centiseconds);
+    return true;
+  }
+
+  const unsigned long minutes = elapsedMs / 60000ul;
+  const unsigned long seconds = (elapsedMs / 1000ul) % 60ul;
+  std::snprintf(buffer, bufferSize, "RUN %lum%02lus", minutes, seconds);
+  return true;
+}
+
 void formatStatusRightText(char *buffer, size_t bufferSize) {
+  if (formatRecentRunDuration(buffer, bufferSize)) {
+    return;
+  }
+
   if (formatCommandProgress(buffer, bufferSize)) {
     return;
   }
@@ -2222,6 +2294,24 @@ void drawCalculatorScreen() {
   drawStackTextLine(kStackFirstY + (3 * kStackRowHeight), xLabel, xBuffer);
 }
 
+void sendDisplayIfFrameChanged() {
+  const uint8_t *frameBuffer = display.getBufferPtr();
+  if (frameBuffer == nullptr) {
+    return;
+  }
+
+  const bool frameChanged =
+      !hasPreviousDisplayFrame ||
+      (std::memcmp(previousDisplayFrame.data(), frameBuffer, previousDisplayFrame.size()) != 0);
+  if (!frameChanged) {
+    return;
+  }
+
+  std::memcpy(previousDisplayFrame.data(), frameBuffer, previousDisplayFrame.size());
+  hasPreviousDisplayFrame = true;
+  display.sendBuffer();
+}
+
 }  // namespace
 
 void setup() {
@@ -2269,7 +2359,7 @@ void loop() {
       drawCalculatorScreen();
     }
 
-    display.sendBuffer();
+    sendDisplayIfFrameChanged();
   }
   if (!programRunner.isRunning()) {
     delay(displaySleeping ? kSleepLoopDelayMs : kLoopDelayMs);
