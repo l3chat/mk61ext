@@ -32,6 +32,9 @@
  * 12 IC_SO
  * 13 IC_SI
  *
+ * If the LCD stays blank after reset and only appears when touching IC_* pins,
+ * tie IC_CS->CS, IC_SCL->SCL, IC_SI->SI and leave IC_SO unconnected.
+ *
  *
  *
  * P-channel MOSFET for backlight
@@ -108,10 +111,15 @@
 #define MK61EXT_HAS_CPU_FREQUENCY_CONTROL 0
 #endif
 
+#ifndef MK61EXT_SERIAL_DEBUG
+#define MK61EXT_SERIAL_DEBUG 0
+#endif
+
 namespace {
 
 constexpr byte kRowCount = 8;
 constexpr byte kColumnCount = 5;
+constexpr unsigned long kSerialBaudRate = 115200;
 
 char kKeyMap[kRowCount][kColumnCount] = {
     {'a', 'b', 'c', 'd', 'e'},
@@ -181,7 +189,6 @@ constexpr uint16_t kSupplyAdcMaxReading = (1u << kSupplyAdcResolutionBits) - 1u;
 constexpr uint8_t kSupplySampleCount = 8;
 constexpr uint32_t kSupplyRefreshMs = 10000;
 constexpr uint32_t kRecentEventDisplayMs = 1500;
-constexpr uint32_t kRunDurationDisplayMs = 10000;
 constexpr float kSupplyAdcReferenceVolts = 3.3f;
 constexpr float kSupplySenseDividerScale = 3.0f;
 constexpr float kExternalPowerDetectOnVolts = 4.35f;
@@ -634,6 +641,14 @@ void finishProgramRunTiming() {
   runTimingStatus.hasLastDuration = true;
   runTimingStatus.lastDurationMs = now - runTimingStatus.startMs;
   runTimingStatus.finishedAtMs = now;
+}
+
+void clearRecentRunDurationDisplay() {
+  if (runTimingStatus.active) {
+    return;
+  }
+
+  runTimingStatus.hasLastDuration = false;
 }
 
 void noteUserActivity() {
@@ -1543,6 +1558,8 @@ void updateInput() {
     return;
   }
 
+  clearRecentRunDurationDisplay();
+
   const bool wasSleeping = displaySleeping;
   noteUserActivity();
   if (wasSleeping) {
@@ -1682,6 +1699,9 @@ void setupDisplay() {
   pinMode(kLegacyDisplayClockPin, INPUT);
   pinMode(kLegacyDisplayDataPin, INPUT);
 
+#if MK61EXT_SERIAL_DEBUG
+  Serial.println("[mk61ext] display: begin()");
+#endif
   display.begin();
   display.setPowerSave(0);
   display.setFlipMode(1);
@@ -1691,6 +1711,9 @@ void setupDisplay() {
   display.setDrawColor(1);
   display.setFontPosTop();
   display.setFontDirection(0);
+#if MK61EXT_SERIAL_DEBUG
+  Serial.println("[mk61ext] display: configured");
+#endif
 }
 
 void setupEeprom() {
@@ -1698,6 +1721,9 @@ void setupEeprom() {
   eepromWire.begin();
 
   if (!eeprom.begin(kEepromAddress, eepromWire)) {
+#if MK61EXT_SERIAL_DEBUG
+    Serial.println("[mk61ext] eeprom: not found");
+#endif
     display.drawStr(0, 0, "no memory found");
     while (true) {
       delay(1);
@@ -1710,6 +1736,9 @@ void setupEeprom() {
   eeprom.setPageWriteTime(3);
   eeprom.disablePollForWriteComplete();
   eepromReady = true;
+#if MK61EXT_SERIAL_DEBUG
+  Serial.println("[mk61ext] eeprom: ready");
+#endif
 }
 
 const char *calculatorModeName() {
@@ -1865,11 +1894,6 @@ bool formatProgramLastCommand(char *buffer, size_t bufferSize) {
 
 bool formatRecentRunDuration(char *buffer, size_t bufferSize) {
   if (runTimingStatus.active || !runTimingStatus.hasLastDuration) {
-    return false;
-  }
-
-  const uint32_t now = millis();
-  if ((now - runTimingStatus.finishedAtMs) > kRunDurationDisplayMs) {
     return false;
   }
 
@@ -2321,10 +2345,40 @@ void sendDisplayIfFrameChanged() {
 }  // namespace
 
 void setup() {
+#if MK61EXT_SERIAL_DEBUG
+  Serial.begin(kSerialBaudRate);
+  const uint32_t serialWaitStartMs = millis();
+  while (!Serial && ((millis() - serialWaitStartMs) < 1500u)) {
+    delay(10);
+  }
+  Serial.println();
+  Serial.println("[mk61ext] boot");
+  Serial.print("[mk61ext] lcd pins sck/mosi/cs/dc/rst=");
+  Serial.print(kDisplayClockPin);
+  Serial.print('/');
+  Serial.print(kDisplayDataPin);
+  Serial.print('/');
+  Serial.print(kDisplayChipSelectPin);
+  Serial.print('/');
+  Serial.print(kDisplayDataCommandPin);
+  Serial.print('/');
+  Serial.println(kDisplayResetPin);
+  Serial.print("[mk61ext] lcd unused hi-z pins=");
+  Serial.print(kUnusedDisplayClockPin);
+  Serial.print('/');
+  Serial.println(kUnusedDisplayDataPin);
+#endif
+
+#if MK61EXT_SERIAL_DEBUG
+  Serial.println("[mk61ext] setup: setupDisplay()");
+#endif
   setupDisplay();
   setupSupplySense();
 
   display.clearBuffer();
+#if MK61EXT_SERIAL_DEBUG
+  Serial.println("[mk61ext] setup: setupEeprom()");
+#endif
   setupEeprom();
   loadSettings();
   updateSupplyVoltage(true);
@@ -2335,6 +2389,9 @@ void setup() {
   syncPeriodicTickers();
   keyPollTickCount = 1;
   displayRefreshTickCount = 1;
+#if MK61EXT_SERIAL_DEBUG
+  Serial.println("[mk61ext] setup: done");
+#endif
 }
 
 void loop() {

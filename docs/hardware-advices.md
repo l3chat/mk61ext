@@ -53,6 +53,18 @@ This is the recommended procedure for your current board when you do not want to
 - Do not connect LCD `SCK/MOSI` to `GPIO18/19` while old `DC/RESET` wiring still exists there.
 - That creates pin-role overlap (`SPI` vs `DC/RESET`) and can cause bus contention or unstable display behavior.
 
+### 5. `IC_*` pins (`10-13`) if screen is blank until touched
+
+- Symptom: after reset, LCD stays blank until you touch pins `10-13` by hand.
+- This usually means those lines are floating on that module revision.
+- Practical fix:
+- bridge `IC_CS` to `CS`,
+- bridge `IC_SCL` to `SCL`,
+- bridge `IC_SI` to `SI`,
+- leave `IC_SO` unconnected.
+- Keep these links short and reflow solder on LCD pins `1-9` at the same time.
+- Add/verify a local `100nF` decoupling capacitor close to LCD `VDD/VSS`.
+
 ## High-Impact Suggestions
 
 ### 1. Move backlight control off `GPIO16`
