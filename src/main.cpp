@@ -1721,7 +1721,8 @@ void setupDisplay() {
   pinMode(kBacklightPin, OUTPUT);
   applyBrightness();
 
-  // Keep legacy software-SPI pins electrically quiet when the LCD is rewired to hardware SPI.
+  // The old LCD SCK/MOSI wires may still be physically connected, so leave those
+  // Pico pins hi-z and let only the new hardware-SPI pins drive the display bus.
   pinMode(kLegacyDisplayClockPin, INPUT);
   pinMode(kLegacyDisplayDataPin, INPUT);
 

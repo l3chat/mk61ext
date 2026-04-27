@@ -8,7 +8,7 @@ It is based on the current firmware behavior, wiring constraints, and recent har
 - MCU: Raspberry Pi Pico / RP2040.
 - LCD (ST7565) historical wiring: `SCK=GPIO20`, `MOSI=GPIO21`, `CS=GPIO17`, `DC=GPIO19`, `RESET=GPIO18`.
 - LCD (ST7565) current migration firmware target: `SCK=GPIO26`, `MOSI=GPIO27`, `CS=GPIO17`, `DC=GPIO19`, `RESET=GPIO18`.
-- Legacy LCD lines `GPIO20/21` are intentionally set to high-impedance input mode in firmware.
+- Legacy LCD lines `GPIO20/21` are intentionally set to high-impedance input mode in firmware because the old wires remain physically connected to the LCD bus. This prevents the old Pico pins from driving against the new `GPIO26/27` SCK/MOSI signals.
 - Backlight control: `GPIO16` through a P-channel MOSFET.
 - EEPROM: AT24C256-compatible on `GPIO14/15` (`SDA/SCL`), I2C address `0x50`.
 
@@ -33,7 +33,7 @@ This is the recommended procedure for your current board when you do not want to
 - LCD `CS` -> `GPIO17` (keep existing)
 - LCD `DC` -> `GPIO19` (keep existing)
 - LCD `RESET` -> `GPIO18` (keep existing)
-- Legacy LCD wires on `GPIO20/21` stay physically connected but are disabled in firmware (high-impedance input).
+- Legacy LCD wires on `GPIO20/21` stay physically connected but are disabled in firmware (high-impedance input) so only the new clock/data pins drive the bus.
 
 ### 2. What to solder
 
