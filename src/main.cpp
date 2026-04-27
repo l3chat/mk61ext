@@ -246,6 +246,7 @@ constexpr CpuFrequencyOption kCpuFrequencyOptions[] = {
 constexpr uint8_t kCpuFrequencyOptionCount =
     sizeof(kCpuFrequencyOptions) / sizeof(kCpuFrequencyOptions[0]);
 constexpr uint8_t kDefaultCpuFrequencyIndex = kCpuFrequencyOptionCount - 1;
+constexpr uint8_t kMinimumSelectableCpuFrequencyIndex = 1;  // 12 MHz is too slow for reliable UI recovery.
 #else
 constexpr uint8_t kDefaultCpuFrequencyIndex = 0;
 #endif
@@ -487,18 +488,20 @@ const char *timeoutLabel(uint8_t index) {
 }
 
 #if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
-const char *cpuFrequencyLabel(uint8_t index) {
-  if (index >= kCpuFrequencyOptionCount) {
-    return kCpuFrequencyOptions[kDefaultCpuFrequencyIndex].label;
+uint8_t sanitizeCpuFrequencyIndex(uint8_t index) {
+  if ((index >= kCpuFrequencyOptionCount) || (index < kMinimumSelectableCpuFrequencyIndex)) {
+    return kDefaultCpuFrequencyIndex;
   }
 
-  return kCpuFrequencyOptions[index].label;
+  return index;
+}
+
+const char *cpuFrequencyLabel(uint8_t index) {
+  return kCpuFrequencyOptions[sanitizeCpuFrequencyIndex(index)].label;
 }
 
 bool applyCpuFrequencySetting(uint8_t index) {
-  if (index >= kCpuFrequencyOptionCount) {
-    return false;
-  }
+  index = sanitizeCpuFrequencyIndex(index);
 
   const CpuFrequencyOption &option = kCpuFrequencyOptions[index];
   if (clock_get_hz(clk_sys) == option.frequencyHz) {
@@ -539,6 +542,10 @@ bool applyCpuFrequencySetting(uint8_t index) {
   return clock_get_hz(clk_sys) == option.frequencyHz;
 }
 #else
+uint8_t sanitizeCpuFrequencyIndex(uint8_t) {
+  return kDefaultCpuFrequencyIndex;
+}
+
 const char *cpuFrequencyLabel(uint8_t) {
   return "FIXED";
 }
@@ -709,8 +716,14 @@ bool isValidStoredSettings(const StoredSettings &settings) {
 }
 
 bool normalizeStoredSettings(StoredSettings &settings) {
+  bool changed = false;
+
   if (settings.version == kSettingsVersion) {
-    return false;
+    if (settings.cpuFrequencyIndex != sanitizeCpuFrequencyIndex(settings.cpuFrequencyIndex)) {
+      settings.cpuFrequencyIndex = sanitizeCpuFrequencyIndex(settings.cpuFrequencyIndex);
+      changed = true;
+    }
+    return changed;
   }
 
   const uint8_t previousVersion = settings.version;
@@ -719,6 +732,7 @@ bool normalizeStoredSettings(StoredSettings &settings) {
   if (previousVersion == kOlderSettingsVersion) {
     settings.programLength = 0;
   }
+  settings.cpuFrequencyIndex = sanitizeCpuFrequencyIndex(settings.cpuFrequencyIndex);
   std::memset(settings.reserved, 0, sizeof(settings.reserved));
   return true;
 }
@@ -1181,14 +1195,26 @@ void adjustSelectedSetting(bool increase) {
           settingsState.stagedSettings.showStackLabels != 0 ? 0 : 1;
       break;
     case SettingsItem::CpuFrequency:
+#if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
+      settingsState.stagedSettings.cpuFrequencyIndex =
+          sanitizeCpuFrequencyIndex(settingsState.stagedSettings.cpuFrequencyIndex);
+      if (increase) {
+        if (settingsState.stagedSettings.cpuFrequencyIndex >= (kCpuFrequencyOptionCount - 1)) {
+          settingsState.stagedSettings.cpuFrequencyIndex = kMinimumSelectableCpuFrequencyIndex;
+        } else {
+          ++settingsState.stagedSettings.cpuFrequencyIndex;
+        }
+      } else if (settingsState.stagedSettings.cpuFrequencyIndex <= kMinimumSelectableCpuFrequencyIndex) {
+        settingsState.stagedSettings.cpuFrequencyIndex = kCpuFrequencyOptionCount - 1;
+      } else {
+        --settingsState.stagedSettings.cpuFrequencyIndex;
+      }
+#else
       settingsState.stagedSettings.cpuFrequencyIndex =
           wrapOptionIndex(settingsState.stagedSettings.cpuFrequencyIndex,
-#if MK61EXT_HAS_CPU_FREQUENCY_CONTROL
-                          kCpuFrequencyOptionCount,
-#else
                           1,
-#endif
                           increase);
+#endif
       break;
   }
 
